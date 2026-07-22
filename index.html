@@ -327,6 +327,26 @@
     50% { transform: translate(2px, 1px) rotate(1deg); }
     75% { transform: translate(-1px, 2px); }
   }
+  /* oscilloscope probe popup (hover a pin) */
+  #probe-scope {
+    display: none;
+    position: fixed;
+    z-index: 20;
+    background: #101408;
+    border: 2px solid #3a4a20;
+    border-radius: 6px;
+    padding: 6px;
+    pointer-events: none;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+  }
+  #probe-scope.show { display: block; }
+  #probe-label {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 11px;
+    color: #9fdf6f;
+    margin-bottom: 4px;
+  }
+  #probe-canvas { display: block; background: #0a0f05; }
   /* cartridge swap dialog */
   #swap-panel {
     display: none;
@@ -675,6 +695,8 @@
     </div>
     <canvas id="screen" width="256" height="240"></canvas>
     <div id="debug">
+      <h3 id="h-cpu">CPU レジスタ</h3>
+      <div id="dbg-cpu"></div>
       <h3 id="h-waves">APU 波形</h3>
       <div id="dbg-waves">
         <div class="wave-row"><span>SQ1</span><canvas class="wave" width="280" height="18"></canvas></div>
@@ -701,6 +723,10 @@
     <div class="pbtn" id="btn-start" data-bit="8">START</div>
   </div>
 </div>
+<div id="probe-scope">
+  <div id="probe-label"></div>
+  <canvas id="probe-canvas" width="256" height="80"></canvas>
+</div>
 <div id="swap-panel">
   <h3 id="swap-title">カセット入替</h3>
   <div id="swap-current">PRG: - / CHR: -</div>
@@ -721,10 +747,10 @@ PRGとCHRを別のカセットから組み合わせた「ニコイチカセッ�
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784761616';</script>
-<script src="i18n.js?v=1784761616"></script>
-<script src="smb-ram.js?v=1784761616"></script>
-<script src="nes.js?v=1784761616"></script>
-<script src="main.js?v=1784761616"></script>
+<script>window.NES_VER='1784762326';</script>
+<script src="i18n.js?v=1784762326"></script>
+<script src="smb-ram.js?v=1784762326"></script>
+<script src="nes.js?v=1784762326"></script>
+<script src="main.js?v=1784762326"></script>
 </body>
 </html>
