@@ -326,6 +326,7 @@
     manualOff.clear();
     setTilt(0);
     api.resetPins();
+    api.reset();   // 挿し直したらリセットボタンを押すのがお作法
     updateBusUI(true);
   });
 
