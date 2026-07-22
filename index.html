@@ -116,6 +116,106 @@
     box-shadow: inset 0 0 0 1px #E05555;
   }
   #bus-hint { font-size: 10px; color: #85755a; margin-top: 2px; }
+  .pin.unstable {
+    background: #6e5418;
+    color: #FFD37A;
+    box-shadow: inset 0 0 0 1px #E0A030;
+    animation: pinblink 0.4s steps(2) infinite;
+  }
+  @keyframes pinblink { 50% { opacity: 0.4; } }
+  /* cartridge front view (visible in 端子 mode, replaces right debug panel) */
+  #cart-view {
+    display: none;
+    width: min(280px, 40vw);
+    max-height: 100%;
+    flex-shrink: 0;
+    overflow: auto;
+    background: #161616;
+    padding: 10px;
+    align-self: stretch;
+    text-align: center;
+  }
+  body.bus-on #cart-view { display: block; }
+  body.bus-on #debug { display: none !important; }
+  #cart-view h3 {
+    color: #ddd;
+    font-size: 12px;
+    margin: 0 0 8px;
+    text-align: left;
+  }
+  #cart-stage {
+    position: relative;
+    height: 210px;
+    overflow: hidden;
+  }
+  #cart-body {
+    position: absolute;
+    left: 50%;
+    bottom: 28px;
+    width: 190px;
+    height: 150px;
+    margin-left: -95px;
+    background: var(--fc-red);
+    border-radius: 8px 8px 2px 2px;
+    box-shadow: inset 0 -6px 0 rgba(0,0,0,0.25), inset 0 3px 0 rgba(255,255,255,0.15);
+    transform-origin: 50% 100%;
+    transition: transform 0.15s;
+  }
+  #cart-label {
+    position: absolute;
+    left: 18px; right: 18px; top: 16px; height: 84px;
+    background: var(--fc-cream);
+    border-radius: 4px;
+    color: var(--fc-red-dark);
+    font-size: 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    overflow: hidden;
+    word-break: break-all;
+  }
+  #cart-edge {
+    position: absolute;
+    left: 14px; right: 14px; bottom: -14px; height: 14px;
+    background: repeating-linear-gradient(90deg, #E5C877 0 4px, #211d18 4px 6px);
+    border-radius: 0 0 2px 2px;
+  }
+  #cart-slot {
+    position: absolute;
+    left: 8px; right: 8px; bottom: 10px; height: 18px;
+    background: #0a0a0a;
+    border: 2px solid #333;
+    border-radius: 3px;
+  }
+  #cart-controls {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  #cart-controls button {
+    background: var(--fc-red);
+    color: var(--fc-cream);
+    border: none;
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 0 var(--fc-red-dark);
+  }
+  #cart-controls button:active { transform: translateY(2px); box-shadow: none; }
+  #cart-angle {
+    color: #ddd;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 13px;
+    min-width: 44px;
+  }
+  #cart-note { font-size: 10px; color: #85755a; margin-top: 6px; text-align: left; }
   #screen-wrap {
     flex: 1;
     display: flex;
@@ -276,6 +376,23 @@
       <h3>WRAM $0000-$07FF</h3>
       <div id="dbg-wram"></div>
     </div>
+    <div id="cart-view">
+      <h3>カートリッジ挿入状態</h3>
+      <div id="cart-stage">
+        <div id="cart-slot"></div>
+        <div id="cart-body">
+          <div id="cart-label">CASSETTE</div>
+          <div id="cart-edge"></div>
+        </div>
+      </div>
+      <div id="cart-controls">
+        <button id="cart-ccw">⟲ 左回り</button>
+        <span id="cart-angle">0°</span>
+        <button id="cart-cw">右回り ⟳</button>
+        <button id="cart-straight">挿し直す</button>
+      </div>
+      <div id="cart-note">傾けると端子の接触が浮いた側から不安定になります(点滅=接触不良気味、黒=断線)。「挿し直す」で全ピン復旧。</div>
+    </div>
   </div>
   <div id="pad">
     <div class="pbtn" id="btn-up" data-bit="16">▲</div>
@@ -288,8 +405,8 @@
     <div class="pbtn" id="btn-start" data-bit="8">START</div>
   </div>
 </div>
-<script>window.NES_VER='1784700946';</script>
-<script src="nes.js?v=1784700946"></script>
-<script src="main.js?v=1784700946"></script>
+<script>window.NES_VER='1784701435';</script>
+<script src="nes.js?v=1784701435"></script>
+<script src="main.js?v=1784701435"></script>
 </body>
 </html>

@@ -219,6 +219,7 @@
     api.reset();
     resumeAudio(); // don't await: resume() only settles after a user gesture
     statusEl.textContent = file.name;
+    document.getElementById('cart-label').textContent = file.name.replace(/\.nes$/i, '');
     running = true;
   });
 
@@ -244,21 +245,85 @@
   ];
   const busFront = document.getElementById('bus-front');
   const busBack = document.getElementById('bus-back');
+  const pinEls = [null];
+  const manualOff = new Set();   // pins the user broke by clicking
+  let tilt = 0;                  // cartridge tilt in degrees (-6 .. +6)
+  const TILT_MAX = 6;
+
   for (let pin = 1; pin <= 60; pin++) {
     const el = document.createElement('div');
     el.className = 'pin';
     el.dataset.pin = pin;
     el.title = `pin ${pin}: ${PIN_NAMES[pin]}`;
-    el.innerHTML = `<b>${pin}</b>${PIN_NAMES[pin].replace(/^(CPU |PPU )/, '$1<br>').replace(' ', ' ')}`;
+    el.innerHTML = `<b>${pin}</b>` + PIN_NAMES[pin].replace(/^(CPU |PPU )/, '$1<br>');
     el.addEventListener('click', () => {
-      const on = api.getPin(pin) ? 0 : 1;
-      api.setPin(pin, on);
-      el.classList.toggle('off', !on);
+      if (manualOff.has(pin)) manualOff.delete(pin);
+      else manualOff.add(pin);
+      applyContacts();
+      updateBusUI(true);
     });
+    pinEls[pin] = el;
     (pin <= 30 ? busFront : busBack).appendChild(el);
   }
   document.getElementById('btn-bus').addEventListener('click', () => {
     document.body.classList.toggle('bus-on');
+    updateBusUI(true);
+  });
+
+  // --- half-insertion model: tilting lifts one side of the edge connector ---
+  // column 0..29 across the connector; both rows share the column
+  const pinColumn = (pin) => (pin <= 30 ? pin - 1 : pin - 31);
+  function contactQuality(col) {   // 1 = solid, 0 = no contact
+    if (tilt === 0) return 1;
+    const x = (col / 29) * 2 - 1;              // -1 (left) .. +1 (right)
+    const lift = (tilt / TILT_MAX) * x;        // lifted side positive
+    if (lift <= 0.15) return 1;
+    if (lift >= 0.6) return 0;
+    return 1 - (lift - 0.15) / 0.45;
+  }
+  // roll the dice for flaky pins — called every frame while tilted
+  function applyContacts() {
+    for (let pin = 1; pin <= 60; pin++) {
+      let on = 0;
+      if (!manualOff.has(pin)) {
+        const q = contactQuality(pinColumn(pin));
+        on = (q >= 1 || Math.random() < q) ? 1 : 0;
+      }
+      api.setPin(pin, on);
+    }
+  }
+
+  let lastBusUi = 0;
+  function updateBusUI(force) {
+    const now = performance.now();
+    if (!force && now - lastBusUi < 150) return;
+    lastBusUi = now;
+    if (!document.body.classList.contains('bus-on')) return;
+    for (let pin = 1; pin <= 60; pin++) {
+      const q = manualOff.has(pin) ? 0 : contactQuality(pinColumn(pin));
+      const el = pinEls[pin];
+      el.classList.toggle('off', q === 0);
+      el.classList.toggle('unstable', q > 0 && q < 1);
+    }
+  }
+
+  // --- cartridge front view / rotation controls ---
+  const cartBody = document.getElementById('cart-body');
+  const cartAngle = document.getElementById('cart-angle');
+  function setTilt(t) {
+    tilt = Math.max(-TILT_MAX, Math.min(TILT_MAX, t));
+    cartBody.style.transform = `rotate(${tilt}deg)`;
+    cartAngle.textContent = (tilt > 0 ? '+' : '') + tilt + '\u00b0';
+    applyContacts();
+    updateBusUI(true);
+  }
+  document.getElementById('cart-ccw').addEventListener('click', () => setTilt(tilt - 1));
+  document.getElementById('cart-cw').addEventListener('click', () => setTilt(tilt + 1));
+  document.getElementById('cart-straight').addEventListener('click', () => {
+    manualOff.clear();
+    setTilt(0);
+    api.resetPins();
+    updateBusUI(true);
   });
 
   // ------------------------------------------------------------------ gamepad
@@ -409,6 +474,7 @@
 
     let ranFrame = false;
     while (acc >= FRAME_MS) {
+      if (tilt !== 0) applyContacts();   // flaky contacts re-roll every frame
       api.setButtons(0, buttons | pollGamepad());
       api.frame();
       window.__nes.frames++;
@@ -435,6 +501,7 @@
       imageData.data.set(Module.HEAPU8.subarray(ptr, ptr + 256 * 240 * 4));
       ctx.putImageData(imageData, 0, 0);
       updateDebug(now);
+      if (tilt !== 0) updateBusUI(false);
     }
   }
   requestAnimationFrame((now) => { lastTime = now; tick(now); });
