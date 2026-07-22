@@ -97,7 +97,8 @@
     -webkit-user-select: text;
     user-select: text;
   }
-  .wave-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  #dbg-waves { white-space: normal; }
+  .wave-row { display: flex; align-items: center; gap: 4px; margin: 1px 0; }
   .wave-row span {
     width: 32px;
     color: #ddd;
@@ -214,12 +215,12 @@
     <div id="debug">
       <h3>APU 波形</h3>
       <div id="dbg-waves">
-        <div class="wave-row"><span>SQ1</span><canvas class="wave" width="280" height="32"></canvas></div>
-        <div class="wave-row"><span>SQ2</span><canvas class="wave" width="280" height="32"></canvas></div>
-        <div class="wave-row"><span>TRI</span><canvas class="wave" width="280" height="32"></canvas></div>
-        <div class="wave-row"><span>NOI</span><canvas class="wave" width="280" height="32"></canvas></div>
-        <div class="wave-row"><span>DMC</span><canvas class="wave" width="280" height="32"></canvas></div>
-        <div class="wave-row"><span>MIX</span><canvas class="wave" width="280" height="32"></canvas></div>
+        <div class="wave-row"><span>SQ1</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>SQ2</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>TRI</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>NOI</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>DMC</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>MIX</span><canvas class="wave" width="280" height="18"></canvas></div>
       </div>
       <h3>APU $4000-$4017</h3>
       <div id="dbg-apu"></div>
