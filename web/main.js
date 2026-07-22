@@ -467,7 +467,8 @@
   function contactQuality(col) {   // 1 = solid, 0 = no contact
     if (tilt === 0) return 1;
     const x = (col / 29) * 2 - 1;              // -1 (left) .. +1 (right)
-    const lift = (tilt / TILT_MAX) * x;        // lifted side positive
+    // clockwise (右回り, tilt>0) about the bottom-center pivot lifts the LEFT side
+    const lift = (tilt / TILT_MAX) * -x;
     if (lift <= 0.15) return 1;
     if (lift >= 0.6) return 0;
     return 1 - (lift - 0.15) / 0.45;
