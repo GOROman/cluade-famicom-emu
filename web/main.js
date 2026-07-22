@@ -37,6 +37,57 @@
   };
   window.__nes = { api, Module, frames: 0, getButtons: () => buttons };
 
+  // ------------------------------------------------------------------ i18n
+  let lang = localStorage.getItem('lang')
+    || (navigator.language.startsWith('ja') ? 'ja' : navigator.language.startsWith('zh') ? 'zh' : 'en');
+  if (!window.I18N[lang]) lang = 'ja';
+  function t(key, vars) {
+    let s = (window.I18N[lang] && window.I18N[lang][key]) || window.I18N.ja[key] || key;
+    if (vars) for (const k of Object.keys(vars)) s = s.split('{' + k + '}').join(vars[k]);
+    return s;
+  }
+  function applyLanguage() {
+    document.documentElement.lang = lang;
+    const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
+    set('lbl-open', 'openRom');
+    set('btn-power', 'power');
+    set('btn-reset', 'reset');
+    set('btn-swap', 'swap');
+    set('btn-bus', 'bus');
+    set('btn-debug', 'debug');
+    set('btn-xev', 'xevCheck');
+    set('lbl-bus-back', 'busBack');
+    set('lbl-bus-front', 'busFront');
+    set('bus-hint', 'busHint');
+    set('cart-title-h3', 'cartTitle');
+    set('cart-ccw', 'ccw');
+    set('cart-cw', 'cw');
+    set('cart-straight', 'reinsert');
+    set('cart-blow', 'blow');
+    set('cart-note', 'cartNote');
+    set('swap-title', 'swapTitle');
+    set('lbl-swap-whole', 'swapWhole');
+    set('lbl-swap-prg', 'swapPrg');
+    set('lbl-swap-chr', 'swapChr');
+    set('swap-note', 'swapNote');
+    set('swap-close', 'close');
+    set('check-close', 'close');
+    set('h-waves', 'apuWaves');
+    set('h-apuregs', 'apuRegs');
+    set('h-wram', 'wramTitle');
+    if (typeof romLoaded !== 'undefined' && !romLoaded) statusEl.textContent = t('statusDefault');
+    if (typeof refreshPinTitles === 'function') refreshPinTitles();
+    if (typeof updateChrTitle === 'function') updateChrTitle();
+    if (typeof updateMuteTips === 'function') updateMuteTips();
+    const sel = document.getElementById('lang-select');
+    if (sel) sel.value = lang;
+  }
+  document.getElementById('lang-select').addEventListener('change', (e) => {
+    lang = e.target.value;
+    localStorage.setItem('lang', lang);
+    applyLanguage();
+  });
+
   // ------------------------------------------------------------------ audio
   let audioCtx = null;
   let audioNode = null;
@@ -206,7 +257,7 @@
   }
   btnPower.addEventListener('click', () => {
     if (!romLoaded) {
-      statusEl.textContent = '先に.NESファイルを開いてください';
+      statusEl.textContent = t('needRom');
       return;
     }
     if (powered) {
@@ -237,12 +288,12 @@
       buf = new Uint8Array(await file.arrayBuffer());
     } catch (err) {
       console.error('[nes] rom read failed:', err);
-      statusEl.textContent = 'ROMの読み込みに失敗しました';
+      statusEl.textContent = t('readFail');
       return;
     }
     const ptr = api.romBuffer();
     if (buf.length > 4 * 1024 * 1024) {
-      statusEl.textContent = 'ROMが大きすぎます';
+      statusEl.textContent = t('tooBig');
       return;
     }
     Module.HEAPU8.set(buf, ptr);
@@ -253,9 +304,9 @@
         const mapper = (buf[6] >> 4) | (dirty ? 0 : (buf[7] & 0xF0));
         info = ` (mapper ${mapper}, PRG ${buf[4] * 16}KB, CHR ${buf[5] * 8}KB)`;
       } else {
-        info = ' (iNESヘッダなし)';
+        info = t('noHeader');
       }
-      statusEl.textContent = '未対応のROM形式/マッパーです' + info;
+      statusEl.textContent = t('unsupported') + info;
       return;
     }
     romKey = file.name + ':' + buf.length;
@@ -333,10 +384,10 @@
   // リセットは掛けない(電源入れっぱなし差し替え=バグ技用)
   function applySwap() {
     const img = buildCombined();
-    if (img.length > 4 * 1024 * 1024) { statusEl.textContent = 'ROMが大きすぎます'; return; }
+    if (img.length > 4 * 1024 * 1024) { statusEl.textContent = t('tooBig'); return; }
     Module.HEAPU8.set(img, api.romBuffer());
     if (!api.swapRom(img.length)) {
-      statusEl.textContent = '未対応のROM形式/マッパーです(入れ替え失敗)';
+      statusEl.textContent = t('unsupportedSwap');
       return;
     }
     romKey = `${cartPrg.name}+${cartChr.name}:${img.length}`;
@@ -345,9 +396,7 @@
     loadSram();
     romLoaded = true;
     updateSwapInfo();
-    statusEl.textContent = powered
-      ? '入替完了 (リセットで起動 — RAMは保持)'
-      : '入替完了 (電源ONで起動)';
+    statusEl.textContent = t(powered ? 'swapDoneReset' : 'swapDonePower');
   }
   async function readSwapFile(e) {
     const file = e.target.files[0];
@@ -355,9 +404,9 @@
     if (!file) return null;
     let buf;
     try { buf = new Uint8Array(await file.arrayBuffer()); }
-    catch (_) { statusEl.textContent = 'ROMの読み込みに失敗しました'; return null; }
+    catch (_) { statusEl.textContent = t('readFail'); return null; }
     const p = parseNes(buf);
-    if (!p) { statusEl.textContent = '未対応のROM形式です'; return null; }
+    if (!p) { statusEl.textContent = t('unsupportedFmt'); return null; }
     return { name: file.name, header: p.header, prg: p.prg, chr: p.chr };
   }
   document.getElementById('btn-swap').addEventListener('click', () => {
@@ -529,24 +578,24 @@
   }
 
   async function checkRegionSlow(label, data, refCrc, refKB, addrBits, crcMs) {
-    if (!data || data.length === 0) return `${label} ...なし\n`;
+    if (!data || data.length === 0) return t('xevNone', { label }) + '\n';
     if (data.length !== refKB * 1024) {
-      return `${label} CRC...<span class="ng">NG</span> (サイズ ${data.length / 1024}KB, 期待 ${refKB}KB)\n`;
+      return t('xevSizeNg', { label, size: data.length / 1024, ref: refKB }) + '\n';
     }
-    const crc = await crc32Slow(data, `${label} CRC 計算中...`, crcMs);
-    if (crc === refCrc) return `${label} CRC...<span class="ok">OK</span> (${hex8(crc)})\n`;
-    let out = `${label} CRC...<span class="ng">NG</span> (${hex8(crc)}, 期待 ${hex8(refCrc)})\n`;
+    const crc = await crc32Slow(data, t('xevCrcLabel', { label }), crcMs);
+    if (crc === refCrc) return t('xevOk', { label, crc: hex8(crc) }) + '\n';
+    let out = t('xevNg', { label, crc: hex8(crc), ref: hex8(refCrc) }) + '\n';
     const stuck = findStuckAddrLines(data, addrBits);
     if (stuck.length) {
-      out += `  → アドレス線 ${stuck.map((b) => 'A' + b).join(', ')} が固定/断線したダンプの疑い(内容が鏡像重複)\n`;
+      out += t('xevStuck', { lines: stuck.map((b) => 'A' + b).join(', ') }) + '\n';
     }
-    const mis = await findBusMiswireSlow(data, refCrc, addrBits, `${label} バス結線診断中...`);
+    const mis = await findBusMiswireSlow(data, refCrc, addrBits, t('xevBusLabel', { label }));
     if (mis) {
-      const n = mis.kind === 'addr' ? 'アドレス' : 'データ';
-      out += `  → ${n}線 ${mis.kind === 'addr' ? 'A' : 'D'}${mis.i} ↔ ${mis.kind === 'addr' ? 'A' : 'D'}${mis.j} を入れ替えると一致: `
-           + `ダンパーの${label}${n}バス結線ミス\n`;
+      const p = mis.kind === 'addr' ? 'A' : 'D';
+      out += t(mis.kind === 'addr' ? 'xevSwapAddr' : 'xevSwapData',
+               { a: p + mis.i, b: p + mis.j, label }) + '\n';
     } else if (!stuck.length) {
-      out += `  → 単純な1本入れ替え/断線では説明できない差異(別リビジョン or 複合的な結線ミス)\n`;
+      out += t('xevUnknown') + '\n';
     }
     return out;
   }
@@ -561,16 +610,16 @@
     if (checking) return;
     checkPanel.classList.add('show');
     if (!lastRom) {
-      checkText.innerHTML = 'ROMが読み込まれていません。.NESファイルを開いてから実行してください。';
+      checkText.innerHTML = t('xevNoRom');
       return;
     }
     checking = true;
-    checkText.innerHTML = `${XEV_REF.name} ダンプ診断\n\n`;
+    checkText.innerHTML = t('xevTitle', { name: XEV_REF.name }) + '\n\n';
     progressBox.classList.add('show');
-    setProgress('準備中...', 0);
+    setProgress(t('prep'), 0);
     checkText.innerHTML += await checkRegionSlow('PRGROM', lastRom.prg, XEV_REF.prgCrc, XEV_REF.prgKB, 15, 2000);
     checkText.innerHTML += await checkRegionSlow('CGROM ', lastRom.chr, XEV_REF.chrCrc, XEV_REF.chrKB, 13, 2000);
-    checkText.innerHTML += '\n基準: 正規ダンプ PRG=EEB16683 / CHR=668B4EE6';
+    checkText.innerHTML += '\n' + t('xevRef');
     progressBox.classList.remove('show');
     checking = false;
   });
@@ -593,37 +642,43 @@
   let tilt = 0;                  // cartridge tilt in degrees (-6 .. +6)
   const TILT_MAX = 6;
 
-  // per-signal hover explanations
+  // per-signal hover explanations (localized)
   function pinDesc(name) {
-    if (name === 'GND') return '電源グランド。1/16番のどちらかが導通していれば動作';
-    if (name === '+5V') return '電源+5V。30/31番のどちらかが導通していれば動作';
-    if (/^CPU A/.test(name)) return `CPUアドレスバス ${name.slice(4)}。PRG ROM/RAM・マッパーレジスタのアドレス指定。断線するとビットが落ちて別アドレスを読み、暴走しやすい`;
-    if (/^CPU D/.test(name)) return `CPUデータバス ${name.slice(4)}。命令・データの読み書き。断線するとオープンバス値に化けて暴走やバグ挙動`;
-    if (name === 'CPU R/W') return 'CPU読み書き制御。断線するとマッパーレジスタ等への書き込みが効かない';
-    if (name === '/IRQ') return 'カートリッジ→CPUの割り込み要求。MMC3のスキャンラインIRQ等が届かなくなる';
-    if (name === 'M2') return 'CPUクロック(φ2)。カートリッジの動作タイミング基準。断線すると応答不能';
-    if (name === '/ROMSEL') return '$8000以降のアクセスでPRG ROMを選択。断線すると起動不能';
-    if (name === 'SOUND IN') return '本体APU音声のカートリッジ入力。音声はカートを経由するため断線すると無音';
-    if (name === 'SOUND OUT') return 'カートリッジからRF/映像回路への音声出力。断線すると無音';
-    if (name === 'PPU /RD') return 'PPU読み出し制御。断線するとCHR(グラフィック)が読めず画面が化ける';
-    if (name === 'PPU /WR') return 'PPU書き込み制御。CHR RAMゲームで書き込み不能に';
-    if (name === 'CIRAM A10') return '本体内ネームテーブルRAMのA10。カートがPPU A10/A11から生成しミラーリング(縦/横)を決める';
-    if (name === 'CIRAM /CE') return '本体内ネームテーブルRAMの選択。断線すると背景データ全滅';
-    if (name === 'PPU /A13') return 'PPU A13の反転。多くのカートでCIRAM /CEの駆動に直結';
-    if (/^PPU A/.test(name)) return `PPUアドレスバス ${name.slice(4)}。CHR ROM/RAMのアドレス指定。断線すると文字やスプライトが似た別の絵に化ける`;
-    if (/^PPU D/.test(name)) return `PPUデータバス ${name.slice(4)}。パターンデータ転送。断線すると縞状のグラフィック化け`;
+    if (name === 'GND') return t('pin_gnd');
+    if (name === '+5V') return t('pin_5v');
+    if (/^CPU A/.test(name)) return t('pin_cpuA', { n: name.slice(4) });
+    if (/^CPU D/.test(name)) return t('pin_cpuD', { n: name.slice(4) });
+    if (name === 'CPU R/W') return t('pin_rw');
+    if (name === '/IRQ') return t('pin_irq');
+    if (name === 'M2') return t('pin_m2');
+    if (name === '/ROMSEL') return t('pin_romsel');
+    if (name === 'SOUND IN') return t('pin_sndin');
+    if (name === 'SOUND OUT') return t('pin_sndout');
+    if (name === 'PPU /RD') return t('pin_ppurd');
+    if (name === 'PPU /WR') return t('pin_ppuwr');
+    if (name === 'CIRAM A10') return t('pin_ciramA10');
+    if (name === 'CIRAM /CE') return t('pin_ciramCe');
+    if (name === 'PPU /A13') return t('pin_ppuA13n');
+    if (/^PPU A/.test(name)) return t('pin_ppuA', { n: name.slice(4) });
+    if (/^PPU D/.test(name)) return t('pin_ppuD', { n: name.slice(4) });
     return '';
   }
 
   const busBackFunc = document.getElementById('bus-back-func');
   const busFrontFunc = document.getElementById('bus-front-func');
+  const funcEls = [null];
+  function refreshPinTitles() {
+    for (let pin = 1; pin <= 60; pin++) {
+      const tip = `pin ${pin}: ${PIN_NAMES[pin]}\n${pinDesc(PIN_NAMES[pin])}`;
+      if (pinEls[pin]) pinEls[pin].title = tip;
+      if (funcEls[pin]) funcEls[pin].title = tip;
+    }
+  }
   for (let pin = 1; pin <= 60; pin++) {
     const name = PIN_NAMES[pin];
-    const tip = `pin ${pin}: ${name}\n${pinDesc(name)}`;
     const el = document.createElement('div');
     el.className = 'pin';
     el.dataset.pin = pin;
-    el.title = tip;
     el.innerHTML = `<b>${pin}</b>`;
     el.addEventListener('click', () => {
       if (manualOff.has(pin)) manualOff.delete(pin);
@@ -637,9 +692,10 @@
     const fl = document.createElement('div');
     fl.className = 'func-label';
     fl.textContent = name;
-    fl.title = tip;
+    funcEls[pin] = fl;
     (pin <= 30 ? busFrontFunc : busBackFunc).appendChild(fl);
   }
+  refreshPinTitles();
   document.getElementById('btn-bus').addEventListener('click', () => {
     document.body.classList.toggle('bus-on');
     updateBusUI(true);
@@ -702,7 +758,7 @@
   function pointerTiltAngle(e) {
     const r = cartStage.getBoundingClientRect();
     const px = r.left + r.width / 2;
-    const py = r.bottom - 28;   // cart-body bottom (transform-origin)
+    const py = r.bottom - 21;   // cart-body bottom (0.75-scaled stage)
     return Math.atan2(e.clientX - px, py - e.clientY) * 180 / Math.PI;
   }
   let dragBaseAngle = 0, dragBaseTilt = 0;
@@ -891,10 +947,13 @@
   const chrCtx = chrCanvas.getContext('2d');
   const chrImage = chrCtx.createImageData(128, 256);
   let chrPal = 0;
+  function updateChrTitle() {
+    document.getElementById('chr-title').textContent =
+      t('chrTitle', { pal: t(chrPal < 4 ? 'bgPal' : 'spPal', { n: chrPal & 3 }) });
+  }
   chrCanvas.addEventListener('click', () => {
     chrPal = (chrPal + 1) & 7;
-    document.getElementById('chr-title').textContent =
-      `CGROM (CHR) — ${chrPal < 4 ? 'BG' : 'SP'} pal ${chrPal & 3} [click]`;
+    updateChrTitle();
     lastDebugUpdate = 0;
   });
 
@@ -905,13 +964,16 @@
   const chanOn = [true, true, true, true, true];
   [...document.querySelectorAll('#dbg-waves .wave-row span')].slice(0, 5).forEach((span, ch) => {
     span.classList.add('chan-toggle');
-    span.title = 'クリックでこのチャンネルをミュート';
     span.addEventListener('click', () => {
       chanOn[ch] = !chanOn[ch];
       api.setChannel(ch, chanOn[ch] ? 1 : 0);
       span.classList.toggle('muted', !chanOn[ch]);
     });
   });
+  function updateMuteTips() {
+    document.querySelectorAll('#dbg-waves .wave-row span.chan-toggle')
+      .forEach((sp) => { sp.title = t('muteTip'); });
+  }
   const WAVE_SCALE = [15, 15, 15, 15, 127];  // raw level range per channel
   let waveData = null;  // captured per frame while debug is on
 
@@ -1051,5 +1113,6 @@
       if (tilt !== 0) updateBusUI(false);
     }
   }
+  applyLanguage();
   requestAnimationFrame((now) => { lastTime = now; tick(now); });
 })();
