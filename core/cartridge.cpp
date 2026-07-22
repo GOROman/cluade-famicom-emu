@@ -207,7 +207,10 @@ std::unique_ptr<Mapper> loadRom(const uint8_t* data, size_t size) {
     int chrBanks = data[5];
     uint8_t flags6 = data[6];
     uint8_t flags7 = data[7];
-    int mapperNum = (flags6 >> 4) | (flags7 & 0xF0);
+    // Archaic iNES: bytes 12-15 should be zero; if not (e.g. "DiskDude!" garbage),
+    // the flags7 upper nibble is unreliable — use only the low nibble of the mapper.
+    bool dirtyHeader = data[12] || data[13] || data[14] || data[15];
+    int mapperNum = (flags6 >> 4) | (dirtyHeader ? 0 : (flags7 & 0xF0));
     bool battery = flags6 & 0x02;
     bool trainer = flags6 & 0x04;
 
