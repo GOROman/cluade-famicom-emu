@@ -38,9 +38,14 @@
   window.__nes = { api, Module, frames: 0, getButtons: () => buttons };
 
   // ------------------------------------------------------------------ i18n
-  let lang = localStorage.getItem('lang')
-    || (navigator.language.startsWith('ja') ? 'ja' : navigator.language.startsWith('zh') ? 'zh' : 'en');
-  if (!window.I18N[lang]) lang = 'ja';
+  // 'auto' follows the browser locale; an explicit choice is persisted
+  function detectLang() {
+    const n = navigator.language || '';
+    return n.startsWith('ja') ? 'ja' : n.startsWith('zh') ? 'zh' : 'en';
+  }
+  let langPref = localStorage.getItem('lang') || 'auto';
+  if (langPref !== 'auto' && !window.I18N[langPref]) langPref = 'auto';
+  let lang = langPref === 'auto' ? detectLang() : langPref;
   function t(key, vars) {
     let s = (window.I18N[lang] && window.I18N[lang][key]) || window.I18N.ja[key] || key;
     if (vars) for (const k of Object.keys(vars)) s = s.split('{' + k + '}').join(vars[k]);
@@ -56,8 +61,6 @@
     set('btn-bus', 'bus');
     set('btn-debug', 'debug');
     set('btn-xev', 'xevCheck');
-    set('lbl-bus-back', 'busBack');
-    set('lbl-bus-front', 'busFront');
     set('bus-hint', 'busHint');
     set('cart-title-h3', 'cartTitle');
     set('cart-ccw', 'ccw');
@@ -80,11 +83,12 @@
     if (typeof updateChrTitle === 'function') updateChrTitle();
     if (typeof updateMuteTips === 'function') updateMuteTips();
     const sel = document.getElementById('lang-select');
-    if (sel) sel.value = lang;
+    if (sel) sel.value = langPref;
   }
   document.getElementById('lang-select').addEventListener('change', (e) => {
-    lang = e.target.value;
-    localStorage.setItem('lang', lang);
+    langPref = e.target.value;
+    localStorage.setItem('lang', langPref);
+    lang = langPref === 'auto' ? detectLang() : langPref;
     applyLanguage();
   });
 
