@@ -72,6 +72,9 @@ window.I18N = {
     pin_ppuA13n: 'PPU A13の反転。多くのカートでCIRAM /CEの駆動に直結',
     pin_ppuA: 'PPUアドレスバス {n}。CHR ROM/RAMのアドレス指定。断線すると文字やスプライトが似た別の絵に化ける',
     pin_ppuD: 'PPUデータバス {n}。パターンデータ転送。断線すると縞状のグラフィック化け',
+    pin_nmi: 'PPU→CPUのNMI出力(内部テストポイント)。VBlank開始でLowに落ち、フレームごとのパルスが見える',
+    pin_apuirq: 'APUのフレーム/DMC IRQ出力(内部テストポイント)',
+    pin_mapirq: 'マッパー(MMC3等)のスキャンラインIRQ出力(内部テストポイント)',
   },
   en: {
     openRom: 'Open ROM',
@@ -145,6 +148,9 @@ window.I18N = {
     pin_ppuA13n: 'Inverted PPU A13. On most carts drives CIRAM /CE directly',
     pin_ppuA: 'PPU address bus {n}. Addresses CHR ROM/RAM. A broken line morphs tiles into similar wrong glyphs',
     pin_ppuD: 'PPU data bus {n}. Pattern data transfer. Broken = striped graphic corruption',
+    pin_nmi: 'PPU→CPU NMI output (internal test point). Drops low at VBlank — a once-per-frame pulse',
+    pin_apuirq: 'APU frame/DMC IRQ output (internal test point)',
+    pin_mapirq: 'Mapper (MMC3 etc.) scanline IRQ output (internal test point)',
   },
   zh: {
     openRom: '打开ROM',
@@ -218,5 +224,8 @@ window.I18N = {
     pin_ppuA13n: 'PPU A13的反相。多数卡带用它直接驱动CIRAM /CE',
     pin_ppuA: 'PPU地址总线 {n}。CHR ROM/RAM寻址。断线时文字和角色会变成相似的错误图案',
     pin_ppuD: 'PPU数据总线 {n}。图案数据传输。断线时产生条纹状花屏',
+    pin_nmi: 'PPU→CPU的NMI输出(内部测试点)。VBlank开始时拉低,每帧一个脉冲',
+    pin_apuirq: 'APU帧/DMC IRQ输出(内部测试点)',
+    pin_mapirq: 'Mapper(MMC3等)扫描线IRQ输出(内部测试点)',
   },
 };

@@ -162,6 +162,10 @@ void nes::NES::probeSample() {
     case 18: v = dig(lastCiramA10); break;                          // CIRAM A10
     case 48: case 49: v = dig(!(lastPpuAddr & 0x2000)); break;      // CIRAM /CE, PPU /A13
     case 56: v = dig(lastPpuAddr & 0x2000); break;                  // PPU A13
+    // internal test points (not on the connector)
+    case 61: v = dig(!ppu.nmiLine()); break;                        // /NMI
+    case 62: v = dig(!apu.irqPending()); break;                     // APU /IRQ
+    case 63: v = dig(!(mapper && mapper->irqPending())); break;     // mapper /IRQ
     default:
         if (p >= 2 && p <= 13)       v = dig((lastCpuAddr >> (13 - p)) & 1);  // CPU A11..A0
         else if (p >= 33 && p <= 35) v = dig((lastCpuAddr >> (p - 21)) & 1);  // CPU A12..A14
@@ -302,6 +306,16 @@ API uint32_t* nes_render_chr(int palIdx) {
 API uint8_t* nes_ram() { return g_nes ? g_nes->ram : nullptr; }
 API uint8_t* nes_apu_regs() { return g_nes ? g_nes->apuRegShadow : nullptr; }
 
+// side-effect-free memory read for the debugger (no PPU register touches,
+// no bus-activity tracking, connector faults bypassed)
+API int nes_peek(int addr) {
+    if (!g_nes) return 0;
+    uint16_t a = (uint16_t)addr;
+    if (a < 0x2000) return g_nes->ram[a & 0x7FF];
+    if (a < 0x4020) return 0;
+    return g_nes->mapper ? g_nes->mapper->cpuRead(a) : 0;
+}
+
 static uint8_t g_cpuRegs[8];
 API uint8_t* nes_cpu_regs() {
     if (!g_nes) return g_cpuRegs;
@@ -317,7 +331,7 @@ API uint8_t* nes_cpu_regs() {
 }
 
 API void nes_set_probe(int pin) {
-    if (g_nes && pin >= 0 && pin <= 60) g_nes->probePin = pin;
+    if (g_nes && pin >= 0 && pin <= 63) g_nes->probePin = pin;
 }
 API uint8_t* nes_probe_buffer() { return g_nes ? g_nes->probeBuf : nullptr; }
 API int nes_probe_pos() { return g_nes ? g_nes->probePos : 0; }

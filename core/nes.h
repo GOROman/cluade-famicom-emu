@@ -91,6 +91,8 @@ public:
     bool frameReady = false;    // set at end of each frame; consumer clears
     uint32_t framebuffer[256 * 240] = {};
     const uint8_t* paletteRam() const { return palette_; }
+    // level of the PPU→CPU NMI output (true = asserted)
+    bool nmiLine() const { return (ctrl_ & 0x80) && (status_ & 0x80); }
 
 private:
     NES& nes_;

@@ -33,6 +33,7 @@
     setChannel: Module._nes_set_channel,
     apuRegs: Module._nes_apu_regs,
     cpuRegs: Module._nes_cpu_regs,
+    peek: Module._nes_peek,
     setProbe: Module._nes_set_probe,
     probeBuffer: Module._nes_probe_buffer,
     probePos: Module._nes_probe_pos,
@@ -644,6 +645,7 @@
     'CPU D4', 'CPU D3', 'CPU D2', 'CPU D1', 'CPU D0', '/ROMSEL', 'SOUND IN',
     'SOUND OUT', 'PPU /WR', 'CIRAM /CE', 'PPU /A13', 'PPU A7', 'PPU A8', 'PPU A9',
     'PPU A10', 'PPU A11', 'PPU A12', 'PPU A13', 'PPU D7', 'PPU D6', 'PPU D5', 'PPU D4',
+    '/NMI', 'APU /IRQ', 'MAPPER /IRQ',
   ];
   const busFront = document.getElementById('bus-front');
   const busBack = document.getElementById('bus-back');
@@ -672,6 +674,9 @@
     if (name === 'PPU /A13') return t('pin_ppuA13n');
     if (/^PPU A/.test(name)) return t('pin_ppuA', { n: name.slice(4) });
     if (/^PPU D/.test(name)) return t('pin_ppuD', { n: name.slice(4) });
+    if (name === '/NMI') return t('pin_nmi');
+    if (name === 'APU /IRQ') return t('pin_apuirq');
+    if (name === 'MAPPER /IRQ') return t('pin_mapirq');
     return '';
   }
 
@@ -874,7 +879,7 @@
   function probeAttach(pin, el) {
     probeActive = pin;
     api.setProbe(pin);
-    probeLabel.textContent = `pin ${pin}: ${PIN_NAMES[pin]}`;
+    probeLabel.textContent = (pin > 60 ? 'TP: ' : `pin ${pin}: `) + PIN_NAMES[pin];
     const r = el.getBoundingClientRect();
     const w = 272;
     probeScope.style.left = Math.max(4, Math.min(window.innerWidth - w - 4, r.left - w / 2)) + 'px';
@@ -887,6 +892,12 @@
     api.setProbe(0);
     probeScope.classList.remove('show');
   }
+  document.querySelectorAll('.tp').forEach((el) => {
+    const pin = +el.dataset.pin;
+    el.title = `${PIN_NAMES[pin]}`;
+    el.addEventListener('mouseenter', () => probeAttach(pin, el));
+    el.addEventListener('mouseleave', () => probeDetach(pin));
+  });
   function drawProbe() {
     if (!probeActive) return;
     const ptr = api.probeBuffer();
@@ -910,7 +921,7 @@
       if (at(i - 1) < 128 && at(i) >= 128) { trig = i; break; }
     }
     probeCtx.strokeStyle = '#7CFC66';
-    probeCtx.lineWidth = 1.5;
+    probeCtx.lineWidth = 0.8;
     probeCtx.beginPath();
     const N = 1024;
     for (let x = 0; x < W; x++) {
@@ -1114,6 +1125,95 @@
     document.body.classList.toggle('debug-on', debugOn);
   });
 
+  // ---- 6502 disassembler (for the debug panel) ----
+  const DIS_TAB = (() => {
+    const tab = {};
+    const src = `ADC:69 imm,65 zp,75 zpx,6D abs,7D abx,79 aby,61 izx,71 izy
+AND:29 imm,25 zp,35 zpx,2D abs,3D abx,39 aby,21 izx,31 izy
+ASL:0A acc,06 zp,16 zpx,0E abs,1E abx
+BCC:90 rel;BCS:B0 rel;BEQ:F0 rel;BIT:24 zp,2C abs;BMI:30 rel;BNE:D0 rel;BPL:10 rel
+BRK:00 imp;BVC:50 rel;BVS:70 rel;CLC:18 imp;CLD:D8 imp;CLI:58 imp;CLV:B8 imp
+CMP:C9 imm,C5 zp,D5 zpx,CD abs,DD abx,D9 aby,C1 izx,D1 izy
+CPX:E0 imm,E4 zp,EC abs;CPY:C0 imm,C4 zp,CC abs
+DEC:C6 zp,D6 zpx,CE abs,DE abx;DEX:CA imp;DEY:88 imp
+EOR:49 imm,45 zp,55 zpx,4D abs,5D abx,59 aby,41 izx,51 izy
+INC:E6 zp,F6 zpx,EE abs,FE abx;INX:E8 imp;INY:C8 imp
+JMP:4C abs,6C ind;JSR:20 abs
+LDA:A9 imm,A5 zp,B5 zpx,AD abs,BD abx,B9 aby,A1 izx,B1 izy
+LDX:A2 imm,A6 zp,B6 zpy,AE abs,BE aby
+LDY:A0 imm,A4 zp,B4 zpx,AC abs,BC abx
+LSR:4A acc,46 zp,56 zpx,4E abs,5E abx
+NOP:EA imp
+ORA:09 imm,05 zp,15 zpx,0D abs,1D abx,19 aby,01 izx,11 izy
+PHA:48 imp;PHP:08 imp;PLA:68 imp;PLP:28 imp
+ROL:2A acc,26 zp,36 zpx,2E abs,3E abx
+ROR:6A acc,66 zp,76 zpx,6E abs,7E abx
+RTI:40 imp;RTS:60 imp
+SBC:E9 imm,E5 zp,F5 zpx,ED abs,FD abx,F9 aby,E1 izx,F1 izy,EB imm
+SEC:38 imp;SED:F8 imp;SEI:78 imp
+STA:85 zp,95 zpx,8D abs,9D abx,99 aby,81 izx,91 izy
+STX:86 zp,96 zpy,8E abs;STY:84 zp,94 zpx,8C abs
+TAX:AA imp;TAY:A8 imp;TSX:BA imp;TXA:8A imp;TXS:9A imp;TYA:98 imp
+LAX:A7 zp,B7 zpy,AF abs,BF aby,A3 izx,B3 izy
+SAX:87 zp,97 zpy,8F abs,83 izx
+DCP:C7 zp,D7 zpx,CF abs,DF abx,DB aby,C3 izx,D3 izy
+ISC:E7 zp,F7 zpx,EF abs,FF abx,FB aby,E3 izx,F3 izy
+SLO:07 zp,17 zpx,0F abs,1F abx,1B aby,03 izx,13 izy
+RLA:27 zp,37 zpx,2F abs,3F abx,3B aby,23 izx,33 izy
+SRE:47 zp,57 zpx,4F abs,5F abx,5B aby,43 izx,53 izy
+RRA:67 zp,77 zpx,6F abs,7F abx,7B aby,63 izx,73 izy
+ANC:0B imm,2B imm;ALR:4B imm;ARR:6B imm;AXS:CB imm
+NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 imm,04 zp,44 zp,64 zp,14 zpx,34 zpx,54 zpx,74 zpx,D4 zpx,F4 zpx,0C abs,1C abx,3C abx,5C abx,7C abx,DC abx,FC abx`;
+    for (const group of src.split(/[\n;]/)) {
+      const [name, list] = group.split(':');
+      for (const ent of list.split(',')) {
+        const [code, mode] = ent.trim().split(' ');
+        tab[parseInt(code, 16)] = [name, mode];
+      }
+    }
+    return tab;
+  })();
+  const DIS_LEN = { imp: 1, acc: 1, imm: 2, zp: 2, zpx: 2, zpy: 2, rel: 2, izx: 2, izy: 2, abs: 3, abx: 3, aby: 3, ind: 3 };
+  const h4 = (v) => v.toString(16).toUpperCase().padStart(4, '0');
+
+  function disasmLine(addr) {
+    const op = api.peek(addr);
+    const ent = DIS_TAB[op] || ['???', 'imp'];
+    const [name, mode] = ent;
+    const len = DIS_LEN[mode];
+    const b1 = len > 1 ? api.peek(addr + 1) : 0;
+    const b2 = len > 2 ? api.peek(addr + 2) : 0;
+    const w = b1 | (b2 << 8);
+    let operand = '';
+    switch (mode) {
+      case 'acc': operand = 'A'; break;
+      case 'imm': operand = '#$' + hex2(b1); break;
+      case 'zp':  operand = '$' + hex2(b1); break;
+      case 'zpx': operand = '$' + hex2(b1) + ',X'; break;
+      case 'zpy': operand = '$' + hex2(b1) + ',Y'; break;
+      case 'abs': operand = '$' + h4(w); break;
+      case 'abx': operand = '$' + h4(w) + ',X'; break;
+      case 'aby': operand = '$' + h4(w) + ',Y'; break;
+      case 'ind': operand = '($' + h4(w) + ')'; break;
+      case 'izx': operand = '($' + hex2(b1) + ',X)'; break;
+      case 'izy': operand = '($' + hex2(b1) + '),Y'; break;
+      case 'rel': operand = '$' + h4((addr + 2 + (b1 << 24 >> 24)) & 0xFFFF); break;
+    }
+    const bytes = [op, b1, b2].slice(0, len).map(hex2).join(' ').padEnd(9);
+    return { len, text: `${h4(addr)}  ${bytes} ${name} ${operand}`.trimEnd() };
+  }
+
+  function renderDisasm(pc) {
+    let addr = pc;
+    const lines = [];
+    for (let i = 0; i < 12; i++) {
+      const l = disasmLine(addr);
+      lines.push((i === 0 ? '<span class="cur">&gt;' : '\u00a0') + l.text.replace(/</g, '&lt;') + (i === 0 ? '</span>' : ''));
+      addr = (addr + l.len) & 0xFFFF;
+    }
+    document.getElementById('dbg-disasm').innerHTML = lines.join('\n');
+  }
+
   function updateDebug(now) {
     if (!debugOn || now - lastDebugUpdate < 100) return;
     lastDebugUpdate = now;
@@ -1125,6 +1225,7 @@
         .map((f, i) => (p >> i) & 1 ? f : f.toLowerCase()).reverse().join('');
       document.getElementById('dbg-cpu').textContent =
         `PC=${pc.toString(16).toUpperCase().padStart(4, '0')}  A=${hex2(c[2])} X=${hex2(c[3])} Y=${hex2(c[4])}  SP=${hex2(c[5])}  P=${hex2(p)} [${flags}]`;
+      renderDisasm(pc);
     }
     const regs = Module.HEAPU8.subarray(api.apuRegs(), api.apuRegs() + 0x18);
     let apuText = '';
@@ -1182,6 +1283,7 @@
 
   function tick(now) {
     requestAnimationFrame(tick);
+    drawProbe();   // oscilloscope updates in real time, even when paused
     if (!running || resetHeld) return;   // reset held: CPU frozen in reset state
 
     acc += now - lastTime;
@@ -1220,7 +1322,6 @@
       imageData.data.set(Module.HEAPU8.subarray(ptr, ptr + 256 * 240 * 4));
       ctx.putImageData(imageData, 0, 0);
       updateDebug(now);
-      drawProbe();
       if (tilt !== 0) updateBusUI(false);
     }
   }

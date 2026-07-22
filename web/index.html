@@ -312,6 +312,38 @@
     padding: 2px 4px;
     text-align: right;
   }
+  #tp-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+  }
+  #tp-row > span {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10px;
+    color: #b7a374;
+  }
+  .tp {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: #16240f;
+    border: 1px solid #3a4a20;
+    border-radius: 10px;
+    color: #9fdf6f;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10px;
+    cursor: crosshair;
+  }
+  .tp::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: linear-gradient(#E5C877, #B8923C);
+  }
+  .tp:hover { background: #22381a; color: #d3ff9f; }
   #cart-controls {
     display: flex;
     gap: 4px;
@@ -512,6 +544,8 @@
     -webkit-user-select: text;
     user-select: text;
   }
+  #dbg-disasm { margin-top: 4px; color: #8fbf8f; }
+  #dbg-disasm .cur { color: #FFEA8C; }
   #dbg-waves { white-space: normal; }
   .ram-b {
     margin-left: 5px;
@@ -668,6 +702,12 @@
         <input type="text" id="clock-input" value="1789773" inputmode="numeric">
         <span class="clock-unit">Hz</span>
       </div>
+      <div id="tp-row">
+        <span>TP</span>
+        <div class="tp" data-pin="61">/NMI</div>
+        <div class="tp" data-pin="62">APU /IRQ</div>
+        <div class="tp" data-pin="63">MAP /IRQ</div>
+      </div>
     </div>
     <div id="cart-view">
       <h3 id="cart-title-h3">カートリッジ挿入状態</h3>
@@ -734,6 +774,7 @@
     <div id="debug">
       <h3 id="h-cpu">CPU レジスタ</h3>
       <div id="dbg-cpu"></div>
+      <div id="dbg-disasm"></div>
       <h3 id="h-waves">APU 波形</h3>
       <div id="dbg-waves">
         <div class="wave-row"><span>SQ1</span><canvas class="wave" width="280" height="18"></canvas></div>
@@ -784,10 +825,10 @@ PRGとCHRを別のカセットから組み合わせた「ニコイチカセッ�
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784763015';</script>
-<script src="i18n.js?v=1784763015"></script>
-<script src="smb-ram.js?v=1784763015"></script>
-<script src="nes.js?v=1784763015"></script>
-<script src="main.js?v=1784763015"></script>
+<script>window.NES_VER='1784763807';</script>
+<script src="i18n.js?v=1784763807"></script>
+<script src="smb-ram.js?v=1784763807"></script>
+<script src="nes.js?v=1784763807"></script>
+<script src="main.js?v=1784763807"></script>
 </body>
 </html>
