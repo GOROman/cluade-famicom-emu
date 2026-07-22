@@ -518,11 +518,14 @@
   document.getElementById('cart-blow').addEventListener('click', () => {
     blowSe.currentTime = 0;
     blowSe.play().catch(() => {});
+    // 変化は基本PPU側(グラフィック系)に出る: 画面化けが定番症状
+    const isPpuPin = (pin) => (pin >= 17 && pin <= 29) || (pin >= 47 && pin <= 60);
     for (let pin = 1; pin <= 60; pin++) {
+      const breakChance = isPpuPin(pin) ? 0.10 : 0.005;
       if (manualOff.has(pin)) {
         if (Math.random() < 0.65) manualOff.delete(pin);   // ゴミが飛んで復活
       } else {
-        if (Math.random() < 0.06) manualOff.add(pin);      // 湿気で接触不良に
+        if (Math.random() < breakChance) manualOff.add(pin);  // 湿気で接触不良に
       }
     }
     applyContacts();
