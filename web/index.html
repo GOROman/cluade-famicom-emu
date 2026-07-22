@@ -155,26 +155,22 @@
     width: 190px;
     height: 150px;
     margin-left: -95px;
-    background: var(--fc-red);
-    border-radius: 8px 8px 2px 2px;
-    box-shadow: inset 0 -6px 0 rgba(0,0,0,0.25), inset 0 3px 0 rgba(255,255,255,0.15);
     transform-origin: 50% 100%;
     transition: transform 0.15s;
   }
+  #cart-svg { display: block; }
   #cart-label {
     position: absolute;
-    left: 18px; right: 18px; top: 16px; height: 84px;
-    background: var(--fc-cream);
-    border-radius: 4px;
+    left: 26px; right: 26px; top: 50px; height: 20px;
     color: var(--fc-red-dark);
     font-size: 10px;
     font-weight: bold;
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 4px;
+    justify-content: flex-start;
     overflow: hidden;
-    word-break: break-all;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   #cart-edge {
     position: absolute;
@@ -464,6 +460,40 @@
       <div id="cart-stage">
         <div id="cart-slot"></div>
         <div id="cart-body">
+          <svg id="cart-svg" viewBox="0 0 190 150" width="190" height="150" xmlns="http://www.w3.org/2000/svg">
+            <!-- top lip with two notches -->
+            <rect x="14" y="0" width="162" height="12" rx="3" fill="var(--fc-red)"/>
+            <rect x="30" y="0" width="26" height="5" fill="rgba(0,0,0,0.28)"/>
+            <rect x="134" y="0" width="26" height="5" fill="rgba(0,0,0,0.28)"/>
+            <!-- body -->
+            <rect x="2" y="8" width="186" height="140" rx="9" fill="var(--fc-red)" stroke="rgba(0,0,0,0.35)" stroke-width="1.5"/>
+            <!-- horizontal grooves near top and bottom -->
+            <line x1="8" y1="21" x2="182" y2="21" stroke="rgba(0,0,0,0.25)" stroke-width="1.5"/>
+            <line x1="8" y1="24" x2="182" y2="24" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>
+            <line x1="8" y1="140" x2="182" y2="140" stroke="rgba(0,0,0,0.25)" stroke-width="1.5"/>
+            <!-- side grip grooves -->
+            <g stroke="rgba(0,0,0,0.25)" stroke-width="1.5">
+              <line x1="7"  y1="56" x2="7"  y2="104"/>
+              <line x1="11" y1="56" x2="11" y2="104"/>
+              <line x1="179" y1="56" x2="179" y2="104"/>
+              <line x1="183" y1="56" x2="183" y2="104"/>
+            </g>
+            <!-- label plate -->
+            <rect x="20" y="30" width="150" height="104" rx="4" fill="var(--fc-cream)" stroke="rgba(0,0,0,0.3)"/>
+            <!-- code strip -->
+            <rect x="20" y="30" width="150" height="16" fill="rgba(0,0,0,0.08)"/>
+            <line x1="20" y1="46" x2="170" y2="46" stroke="rgba(0,0,0,0.25)"/>
+            <rect x="24" y="33" width="32" height="10" fill="none" stroke="rgba(0,0,0,0.4)" stroke-width="0.8"/>
+            <text x="40" y="41" font-size="7" text-anchor="middle" fill="#444" font-family="ui-monospace, monospace">HVC</text>
+            <!-- diagonal swoosh band -->
+            <polygon points="20,72 92,72 118,100 170,54 170,66 118,112 92,84 20,84" fill="var(--fc-red)"/>
+            <!-- pinstripes following the band -->
+            <g stroke="var(--fc-red)" stroke-width="1.1" fill="none" opacity="0.75">
+              <polyline points="20,90 92,90 118,118 170,72"/>
+              <polyline points="20,95 92,95 117,122 170,77"/>
+              <polyline points="20,100 92,100 116,126 170,82"/>
+            </g>
+          </svg>
           <div id="cart-label">CASSETTE</div>
           <div id="cart-edge"></div>
         </div>
@@ -498,8 +528,8 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784704042';</script>
-<script src="nes.js?v=1784704042"></script>
-<script src="main.js?v=1784704042"></script>
+<script>window.NES_VER='1784707332';</script>
+<script src="nes.js?v=1784707332"></script>
+<script src="main.js?v=1784707332"></script>
 </body>
 </html>
