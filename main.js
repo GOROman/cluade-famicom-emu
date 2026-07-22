@@ -107,6 +107,8 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyF' && !e.repeat) { toggleFullscreen(); e.preventDefault(); return; }
+    if (e.code === 'KeyR' && !e.repeat) { if (running) api.reset(); e.preventDefault(); return; }
+    if (e.code === 'KeyD' && !e.repeat) { document.getElementById('btn-debug').click(); e.preventDefault(); return; }
     const bit = KEYMAP[e.code];
     if (bit) { buttons |= bit; e.preventDefault(); }
   });
@@ -215,6 +217,15 @@
       return;
     }
     romKey = file.name + ':' + buf.length;
+    { // keep PRG/CHR copies for dump diagnostics
+      const trainer = buf[6] & 0x04;
+      const off = 16 + (trainer ? 512 : 0);
+      const prgLen = buf[4] * 16384, chrLen = buf[5] * 8192;
+      lastRom = {
+        prg: buf.slice(off, off + prgLen),
+        chr: buf.slice(off + prgLen, off + prgLen + chrLen),
+      };
+    }
     loadSram();
     api.reset();
     resumeAudio(); // don't await: resume() only settles after a user gesture
@@ -230,6 +241,109 @@
   muteBtn.addEventListener('click', () => {
     muted = !muted;
     muteBtn.textContent = muted ? '🔇' : '🔊';
+  });
+
+  // ------------------------------------------------------------------ dump check (XEVIOUS判定)
+  // reference CRCs from a known-good Xevious (Japan) cartridge
+  const XEV_REF = { name: 'XEVIOUS (J)', prgCrc: 0xEEB16683, prgKB: 32, chrCrc: 0x668B4EE6, chrKB: 8 };
+  let lastRom = null;   // {prg, chr} Uint8Array copies of the loaded ROM
+
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(u8) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  const hex8 = (v) => (v >>> 0).toString(16).toUpperCase().padStart(8, '0');
+
+  // Detect a dead (stuck) address line: the dump then contains mirrored halves.
+  function findStuckAddrLines(data, addrBits) {
+    const stuck = [];
+    for (let b = 0; b < addrBits; b++) {
+      const m = 1 << b;
+      let dup = true;
+      for (let a = 0; a < data.length; a++) if (data[a] !== data[a ^ m]) { dup = false; break; }
+      if (dup) stuck.push(b);
+    }
+    return stuck;
+  }
+  // If a single swapped address/data line reproduces the reference CRC,
+  // the dumper's bus is miswired — report which lines.
+  function findBusMiswire(data, refCrc, addrBits) {
+    const buf = new Uint8Array(data.length);
+    for (let i = 0; i < addrBits; i++) {
+      for (let j = i + 1; j < addrBits; j++) {
+        const mi = 1 << i, mj = 1 << j;
+        for (let a = 0; a < data.length; a++) {
+          let b2 = a & ~(mi | mj);
+          if (a & mi) b2 |= mj;
+          if (a & mj) b2 |= mi;
+          buf[b2] = data[a];
+        }
+        if (crc32(buf) === refCrc) return { kind: 'addr', i, j };
+      }
+    }
+    for (let i = 0; i < 8; i++) {
+      for (let j = i + 1; j < 8; j++) {
+        const mi = 1 << i, mj = 1 << j;
+        for (let a = 0; a < data.length; a++) {
+          const v = data[a];
+          let w = v & ~(mi | mj);
+          if (v & mi) w |= mj;
+          if (v & mj) w |= mi;
+          buf[a] = w;
+        }
+        if (crc32(buf) === refCrc) return { kind: 'data', i, j };
+      }
+    }
+    return null;
+  }
+
+  function checkRegion(label, data, refCrc, refKB, addrBits) {
+    if (!data || data.length === 0) return `${label} ...なし\n`;
+    const crc = crc32(data);
+    if (data.length !== refKB * 1024) {
+      return `${label} CRC...<span class="ng">NG</span> (サイズ ${data.length / 1024}KB, 期待 ${refKB}KB)\n`;
+    }
+    if (crc === refCrc) return `${label} CRC...<span class="ok">OK</span> (${hex8(crc)})\n`;
+    let out = `${label} CRC...<span class="ng">NG</span> (${hex8(crc)}, 期待 ${hex8(refCrc)})\n`;
+    const stuck = findStuckAddrLines(data, addrBits);
+    if (stuck.length) {
+      out += `  → アドレス線 ${stuck.map((b) => 'A' + b).join(', ')} が固定/断線したダンプの疑い(内容が鏡像重複)\n`;
+    }
+    const mis = findBusMiswire(data, refCrc, addrBits);
+    if (mis) {
+      const n = mis.kind === 'addr' ? 'アドレス' : 'データ';
+      out += `  → ${n}線 ${mis.kind === 'addr' ? 'A' : 'D'}${mis.i} ↔ ${mis.kind === 'addr' ? 'A' : 'D'}${mis.j} を入れ替えると一致: `
+           + `ダンパーの${label}${n}バス結線ミス\n`;
+    } else if (!stuck.length) {
+      out += `  → 単純な1本入れ替え/断線では説明できない差異(別リビジョン or 複合的な結線ミス)\n`;
+    }
+    return out;
+  }
+
+  const checkPanel = document.getElementById('check-panel');
+  document.getElementById('check-close').addEventListener('click', () => checkPanel.classList.remove('show'));
+  document.getElementById('btn-xev').addEventListener('click', () => {
+    let html;
+    if (!lastRom) {
+      html = 'ROMが読み込まれていません。.NESファイルを開いてから実行してください。';
+    } else {
+      html = `${XEV_REF.name} ダンプ診断\n\n`;
+      html += checkRegion('PRGROM', lastRom.prg, XEV_REF.prgCrc, XEV_REF.prgKB, 15);
+      html += checkRegion('CGROM ', lastRom.chr, XEV_REF.chrCrc, XEV_REF.chrKB, 13);
+      html += '\n基準: 正規ダンプ PRG=EEB16683 / CHR=668B4EE6';
+    }
+    document.getElementById('check-text').innerHTML = html;
+    checkPanel.classList.add('show');
   });
 
   // ------------------------------------------------------------------ cartridge connector (60pin)
