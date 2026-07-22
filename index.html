@@ -197,8 +197,10 @@
     margin-left: -95px;
     transform-origin: 50% 100%;
     transition: transform 0.15s;
+    touch-action: none;
   }
-  #cart-svg { display: block; }
+  #cart-body.dragging { transition: none; cursor: grabbing; }
+  #cart-svg { display: block; pointer-events: none; }
   #cart-label {
     position: absolute;
     left: 26px; right: 26px; top: 50px; height: 20px;
@@ -574,8 +576,8 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784714615';</script>
-<script src="nes.js?v=1784714615"></script>
-<script src="main.js?v=1784714615"></script>
+<script>window.NES_VER='1784714761';</script>
+<script src="nes.js?v=1784714761"></script>
+<script src="main.js?v=1784714761"></script>
 </body>
 </html>
