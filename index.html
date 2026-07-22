@@ -222,6 +222,25 @@
     min-width: 44px;
   }
   #cart-note { font-size: 10px; color: #85755a; margin-top: 6px; text-align: left; }
+  .blow-puff {
+    position: absolute;
+    bottom: 30px;
+    font-size: 26px;
+    pointer-events: none;
+    animation: puff 0.9s ease-out forwards;
+  }
+  @keyframes puff {
+    0%   { opacity: 0; transform: translate(0, 10px) scale(0.6); }
+    30%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(-18px, -46px) scale(1.5); }
+  }
+  #cart-label.shake { animation: cartshake 0.5s; }
+  @keyframes cartshake {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-2px, -2px) rotate(-1deg); }
+    50% { transform: translate(2px, 1px) rotate(1deg); }
+    75% { transform: translate(-1px, 2px); }
+  }
   /* dump check result panel */
   #check-panel {
     display: none;
@@ -455,6 +474,7 @@
         <span id="cart-angle">0.0°</span>
         <button id="cart-cw">右回り ⟳</button>
         <button id="cart-straight">挿し直す</button>
+        <button id="cart-blow">息💨</button>
       </div>
       <div id="cart-note">傾けると端子の接触が浮いた側から不安定になります(点滅=接触不良気味、黒=断線)。「挿し直す」で全ピン復旧。</div>
     </div>
@@ -478,8 +498,8 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784703073';</script>
-<script src="nes.js?v=1784703073"></script>
-<script src="main.js?v=1784703073"></script>
+<script>window.NES_VER='1784703261';</script>
+<script src="nes.js?v=1784703261"></script>
+<script src="main.js?v=1784703261"></script>
 </body>
 </html>

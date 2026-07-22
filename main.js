@@ -513,6 +513,31 @@
   cartSlider.addEventListener('input', () => setTilt(parseFloat(cartSlider.value)));
   document.getElementById('cart-ccw').addEventListener('click', () => setTilt(tilt - 0.1));
   document.getElementById('cart-cw').addEventListener('click', () => setTilt(tilt + 0.1));
+  // 息を吹く: ホコリが飛んで直ることもあれば、湿気で余計ダメになることも
+  document.getElementById('cart-blow').addEventListener('click', () => {
+    for (let pin = 1; pin <= 60; pin++) {
+      if (manualOff.has(pin)) {
+        if (Math.random() < 0.65) manualOff.delete(pin);   // ゴミが飛んで復活
+      } else {
+        if (Math.random() < 0.06) manualOff.add(pin);      // 湿気で接触不良に
+      }
+    }
+    applyContacts();
+    updateBusUI(true);
+    // 💨 演出
+    const stage = document.getElementById('cart-stage');
+    const puff = document.createElement('div');
+    puff.className = 'blow-puff';
+    puff.textContent = '💨';
+    puff.style.left = (30 + Math.random() * 40) + '%';
+    stage.appendChild(puff);
+    setTimeout(() => puff.remove(), 1000);
+    const label = document.getElementById('cart-label');
+    label.classList.remove('shake');
+    void label.offsetWidth;   // restart animation
+    label.classList.add('shake');
+  });
+
   document.getElementById('cart-straight').addEventListener('click', () => {
     manualOff.clear();
     setTilt(0);
