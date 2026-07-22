@@ -184,14 +184,20 @@ API uint32_t* nes_render_chr(int palIdx) {
         nes::NES_PALETTE[pal[palIdx * 4 + 2] & 0x3F],
         nes::NES_PALETTE[pal[palIdx * 4 + 3] & 0x3F],
     };
+    // read CHR through the (possibly faulty) connector, same as the PPU does
+    auto chrRead = [&](uint16_t addr) -> uint8_t {
+        if (!g_nes->powerOk || !g_nes->ppuRdOk) return addr & 0xFF;
+        uint8_t v = g_nes->mapper->ppuRead(addr & g_nes->chrAddrAnd & 0x1FFF);
+        return (v & g_nes->chrDataAnd) | ((addr & 0xFF) & ~g_nes->chrDataAnd);
+    };
     for (int table = 0; table < 2; table++) {
         for (int tile = 0; tile < 256; tile++) {
             int baseX = (tile & 15) * 8;
             int baseY = table * 128 + (tile >> 4) * 8;
             uint16_t addr = table * 0x1000 + tile * 16;
             for (int y = 0; y < 8; y++) {
-                uint8_t lo = g_nes->mapper->ppuRead(addr + y);
-                uint8_t hi = g_nes->mapper->ppuRead(addr + y + 8);
+                uint8_t lo = chrRead(addr + y);
+                uint8_t hi = chrRead(addr + y + 8);
                 for (int x = 0; x < 8; x++) {
                     int px = ((lo >> (7 - x)) & 1) | (((hi >> (7 - x)) & 1) << 1);
                     g_chrImage[(baseY + y) * 128 + baseX + x] = SHADES[px];
