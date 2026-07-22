@@ -56,6 +56,14 @@ void NES::powerOn() {
 }
 
 uint8_t NES::cpuRead(uint16_t addr) {
+    lastCpuAddr = addr;
+    lastCpuWrite = false;
+    uint8_t v = cpuReadBus(addr);
+    lastCpuData = v;
+    return v;
+}
+
+uint8_t NES::cpuReadBus(uint16_t addr) {
     if (addr < 0x2000) return ram[addr & 0x7FF];
     if (addr < 0x4000) return ppu.readReg(addr);
     if (addr == 0x4015) return apu.readStatus();
@@ -72,6 +80,9 @@ uint8_t NES::cpuRead(uint16_t addr) {
 }
 
 void NES::cpuWrite(uint16_t addr, uint8_t v) {
+    lastCpuAddr = addr;
+    lastCpuData = v;
+    lastCpuWrite = true;
     if (addr < 0x2000) { ram[addr & 0x7FF] = v; return; }
     if (addr < 0x4000) { ppu.writeReg(addr, v); return; }
     if (addr == 0x4014) {
@@ -104,11 +115,51 @@ void NES::runFrame() {
             ppu.step();
             ppu.step();
             ppu.step();
+            cycleCount++;
+            if (probePin) probeSample();
         }
     }
 }
 
 } // namespace nes
+
+// Sample the probed pin's logic level once per CPU cycle.
+// Digital levels use 30/220 so the trace reads like a real scope.
+void nes::NES::probeSample() {
+    auto dig = [](bool b) -> uint8_t { return b ? 220 : 30; };
+    uint8_t v = 30;
+    int p = probePin;
+    switch (p) {
+    case 1: case 16: v = 30; break;                                 // GND
+    case 30: case 31: v = 220; break;                               // +5V
+    case 14: v = dig(!lastCpuWrite); break;                         // R/W (high = read)
+    case 15: v = dig(!(apu.irqPending() || (mapper && irqOk && mapper->irqPending()))); break; // /IRQ
+    case 32: v = dig(cycleCount & 1); break;                        // M2
+    case 44: v = dig(!(lastCpuAddr >= 0x8000)); break;              // /ROMSEL
+    case 45: case 46: {                                             // cart audio loop-through
+        int s = soundOk ? (int)(30 + apu.mix() * 320.0f) : 30;
+        v = (uint8_t)(s > 245 ? 245 : s);
+        break;
+    }
+    case 17: v = dig(!ppuRdPulse); break;                           // PPU /RD
+    case 47: v = dig(!ppuWrPulse); break;                           // PPU /WR
+    case 18: v = dig(lastCiramA10); break;                          // CIRAM A10
+    case 48: case 49: v = dig(!(lastPpuAddr & 0x2000)); break;      // CIRAM /CE, PPU /A13
+    case 56: v = dig(lastPpuAddr & 0x2000); break;                  // PPU A13
+    default:
+        if (p >= 2 && p <= 13)       v = dig((lastCpuAddr >> (13 - p)) & 1);  // CPU A11..A0
+        else if (p >= 33 && p <= 35) v = dig((lastCpuAddr >> (p - 21)) & 1);  // CPU A12..A14
+        else if (p >= 36 && p <= 43) v = dig((lastCpuData >> (43 - p)) & 1);  // CPU D7..D0
+        else if (p >= 19 && p <= 25) v = dig((lastPpuAddr >> (25 - p)) & 1);  // PPU A6..A0
+        else if (p >= 50 && p <= 55) v = dig((lastPpuAddr >> (p - 43)) & 1);  // PPU A7..A12
+        else if (p >= 26 && p <= 29) v = dig((lastPpuData >> (p - 26)) & 1);  // PPU D0..D3
+        else if (p >= 57 && p <= 60) v = dig((lastPpuData >> (64 - p)) & 1);  // PPU D7..D4
+        break;
+    }
+    probeBuf[probePos] = v;
+    probePos = (probePos + 1) & 2047;
+    ppuRdPulse = ppuWrPulse = false;
+}
 
 // ================================================================ WASM C API
 #ifdef __EMSCRIPTEN__
@@ -227,6 +278,26 @@ API uint32_t* nes_render_chr(int palIdx) {
 
 API uint8_t* nes_ram() { return g_nes ? g_nes->ram : nullptr; }
 API uint8_t* nes_apu_regs() { return g_nes ? g_nes->apuRegShadow : nullptr; }
+
+static uint8_t g_cpuRegs[8];
+API uint8_t* nes_cpu_regs() {
+    if (!g_nes) return g_cpuRegs;
+    const auto& c = g_nes->cpu;
+    g_cpuRegs[0] = c.pc & 0xFF;
+    g_cpuRegs[1] = c.pc >> 8;
+    g_cpuRegs[2] = c.a;
+    g_cpuRegs[3] = c.x;
+    g_cpuRegs[4] = c.y;
+    g_cpuRegs[5] = c.sp;
+    g_cpuRegs[6] = (c.fN << 7) | (c.fV << 6) | 0x20 | (c.fD << 3) | (c.fI << 2) | (c.fZ << 1) | (uint8_t)c.fC;
+    return g_cpuRegs;
+}
+
+API void nes_set_probe(int pin) {
+    if (g_nes && pin >= 0 && pin <= 60) g_nes->probePin = pin;
+}
+API uint8_t* nes_probe_buffer() { return g_nes ? g_nes->probeBuf : nullptr; }
+API int nes_probe_pos() { return g_nes ? g_nes->probePos : 0; }
 API void nes_set_channel(int ch, int on) {
     if (g_nes && ch >= 0 && ch < 5) g_nes->apu.chanEnable[ch] = on != 0;
 }

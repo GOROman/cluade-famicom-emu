@@ -148,6 +148,7 @@ public:
     // per-channel mute switches (UI): p1,p2,tri,noise,dmc
     bool chanEnable[5] = {true, true, true, true, true};
     void setSampleRate(double rate) { cyclesPerSample_ = 1789773.0 / rate; }
+    float mix() const;   // public: also used by the oscilloscope probe
 
 private:
     NES& nes_;
@@ -220,7 +221,6 @@ private:
     void quarterFrame();
     void halfFrame();
     void stepDmc();
-    float mix() const;
 };
 
 // ---------------------------------------------------------------- Controller
@@ -277,6 +277,17 @@ public:
     bool soundOk = true, powerOk = true;
     void updatePins();
     uint8_t cartOpenBus(uint16_t addr) const { return addr >> 8; }
+
+    // ---- oscilloscope probe (hover a pin in the UI) ----
+    int probePin = 0;               // 1-60, 0 = no probe
+    uint8_t probeBuf[2048] = {};    // one sample per CPU cycle (~1.1ms window)
+    int probePos = 0;
+    uint64_t cycleCount = 0;
+    uint16_t lastCpuAddr = 0; uint8_t lastCpuData = 0; bool lastCpuWrite = false;
+    uint16_t lastPpuAddr = 0; uint8_t lastPpuData = 0;
+    bool ppuRdPulse = false, ppuWrPulse = false, lastCiramA10 = false;
+    void probeSample();
+    uint8_t cpuReadBus(uint16_t addr);
 };
 
 extern const uint32_t NES_PALETTE[64];

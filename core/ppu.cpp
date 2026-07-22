@@ -37,19 +37,25 @@ uint16_t PPU::ntMirror(uint16_t addr) {
     default:                    r = ((table & 1) * 0x400) + off; break; // 4-screen fallback
     }
     if (!nes_.ciramA10Ok) r &= ~0x400;   // CIRAM A10 pin broken: bit floats low
+    nes_.lastCiramA10 = (r & 0x400) != 0;
     return r;
 }
 
 uint8_t PPU::vramRead(uint16_t addr) {
     addr &= 0x3FFF;
+    if (addr < 0x3F00) { nes_.lastPpuAddr = addr; nes_.ppuRdPulse = true; }
     if (addr < 0x2000) {
         if (!nes_.powerOk || !nes_.ppuRdOk) return addr & 0xFF;   // bus floats
         uint8_t v = nes_.mapper->ppuRead(addr & nes_.chrAddrAnd & 0x1FFF);
-        return (v & nes_.chrDataAnd) | ((addr & 0xFF) & ~nes_.chrDataAnd);
+        v = (v & nes_.chrDataAnd) | ((addr & 0xFF) & ~nes_.chrDataAnd);
+        nes_.lastPpuData = v;
+        return v;
     }
     if (addr < 0x3F00) {
         if (!nes_.ciramCeOk) return addr & 0xFF;   // nametable RAM not selected
-        return vram_[ntMirror(addr)];
+        uint8_t v = vram_[ntMirror(addr)];
+        nes_.lastPpuData = v;
+        return v;
     }
     addr &= 0x1F;
     if (addr >= 0x10 && (addr & 3) == 0) addr &= 0x0F;
@@ -58,6 +64,7 @@ uint8_t PPU::vramRead(uint16_t addr) {
 
 void PPU::vramWrite(uint16_t addr, uint8_t v) {
     addr &= 0x3FFF;
+    if (addr < 0x3F00) { nes_.lastPpuAddr = addr; nes_.lastPpuData = v; nes_.ppuWrPulse = true; }
     if (addr < 0x2000) {
         if (!nes_.powerOk || !nes_.ppuWrOk) return;
         nes_.mapper->ppuWrite(addr & nes_.chrAddrAnd & 0x1FFF,

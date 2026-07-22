@@ -31,6 +31,10 @@
     chanBuffer: Module._nes_chan_buffer,
     setChannel: Module._nes_set_channel,
     apuRegs: Module._nes_apu_regs,
+    cpuRegs: Module._nes_cpu_regs,
+    setProbe: Module._nes_set_probe,
+    probeBuffer: Module._nes_probe_buffer,
+    probePos: Module._nes_probe_pos,
     sram: Module._nes_sram,
     sramSize: Module._nes_sram_size,
     hasBattery: Module._nes_has_battery,
@@ -75,6 +79,7 @@
     set('swap-note', 'swapNote');
     set('swap-close', 'close');
     set('check-close', 'close');
+    set('h-cpu', 'cpuRegs');
     set('h-waves', 'apuWaves');
     set('h-apuregs', 'apuRegs');
     set('h-wram', 'wramTitle');
@@ -690,6 +695,8 @@
       applyContacts();
       updateBusUI(true);
     });
+    el.addEventListener('mouseenter', () => probeAttach(pin, el));
+    el.addEventListener('mouseleave', () => probeDetach(pin));
     pinEls[pin] = el;
     (pin <= 30 ? busFront : busBack).appendChild(el);
     // function label above (back row) / below (front row)
@@ -826,6 +833,63 @@
     api.reset();   // 挿し直したらリセットボタンを押すのがお作法
     updateBusUI(true);
   });
+
+  // ------------------------------------------------------------------ oscilloscope probe
+  const probeScope = document.getElementById('probe-scope');
+  const probeLabel = document.getElementById('probe-label');
+  const probeCanvas = document.getElementById('probe-canvas');
+  const probeCtx = probeCanvas.getContext('2d');
+  let probeActive = 0;
+
+  function probeAttach(pin, el) {
+    probeActive = pin;
+    api.setProbe(pin);
+    probeLabel.textContent = `pin ${pin}: ${PIN_NAMES[pin]}`;
+    const r = el.getBoundingClientRect();
+    const w = 272;
+    probeScope.style.left = Math.max(4, Math.min(window.innerWidth - w - 4, r.left - w / 2)) + 'px';
+    probeScope.style.top = (document.getElementById('cartbus').getBoundingClientRect().bottom + 4) + 'px';
+    probeScope.classList.add('show');
+  }
+  function probeDetach(pin) {
+    if (probeActive !== pin) return;
+    probeActive = 0;
+    api.setProbe(0);
+    probeScope.classList.remove('show');
+  }
+  function drawProbe() {
+    if (!probeActive) return;
+    const ptr = api.probeBuffer();
+    if (!ptr) return;
+    const buf = Module.HEAPU8.subarray(ptr, ptr + 2048);
+    const head = api.probePos();
+    const W = probeCanvas.width, H = probeCanvas.height;
+    probeCtx.fillStyle = '#0a0f05';
+    probeCtx.fillRect(0, 0, W, H);
+    // graticule
+    probeCtx.strokeStyle = '#1c2a12';
+    probeCtx.lineWidth = 1;
+    probeCtx.beginPath();
+    for (let gx = 0; gx <= W; gx += 32) { probeCtx.moveTo(gx + 0.5, 0); probeCtx.lineTo(gx + 0.5, H); }
+    for (let gy = 0; gy <= H; gy += 20) { probeCtx.moveTo(0, gy + 0.5); probeCtx.lineTo(W, gy + 0.5); }
+    probeCtx.stroke();
+    // simple rising-edge trigger for a stable trace
+    const at = (i) => buf[(head + i) & 2047];
+    let trig = 0;
+    for (let i = 1; i < 1024; i++) {
+      if (at(i - 1) < 128 && at(i) >= 128) { trig = i; break; }
+    }
+    probeCtx.strokeStyle = '#7CFC66';
+    probeCtx.lineWidth = 1.5;
+    probeCtx.beginPath();
+    const N = 1024;
+    for (let x = 0; x < W; x++) {
+      const i = trig + ((x * N / W) | 0);
+      const y = H - 4 - (at(i) / 255) * (H - 8);
+      if (x === 0) probeCtx.moveTo(x, y); else probeCtx.lineTo(x, y);
+    }
+    probeCtx.stroke();
+  }
 
   // ------------------------------------------------------------------ gamepad
   // Standard mapping, Famicom-layout accurate: right button (1) = A, bottom (0) = B
@@ -1023,6 +1087,15 @@
   function updateDebug(now) {
     if (!debugOn || now - lastDebugUpdate < 100) return;
     lastDebugUpdate = now;
+    {
+      const c = Module.HEAPU8.subarray(api.cpuRegs(), api.cpuRegs() + 7);
+      const pc = c[0] | (c[1] << 8);
+      const p = c[6];
+      const flags = ['C','Z','I','D','B','-','V','N']
+        .map((f, i) => (p >> i) & 1 ? f : f.toLowerCase()).reverse().join('');
+      document.getElementById('dbg-cpu').textContent =
+        `PC=${pc.toString(16).toUpperCase().padStart(4, '0')}  A=${hex2(c[2])} X=${hex2(c[3])} Y=${hex2(c[4])}  SP=${hex2(c[5])}  P=${hex2(p)} [${flags}]`;
+    }
     const regs = Module.HEAPU8.subarray(api.apuRegs(), api.apuRegs() + 0x18);
     let apuText = '';
     for (let i = 0; i < 0x18; i++) {
@@ -1114,6 +1187,7 @@
       imageData.data.set(Module.HEAPU8.subarray(ptr, ptr + 256 * 240 * 4));
       ctx.putImageData(imageData, 0, 0);
       updateDebug(now);
+      drawProbe();
       if (tilt !== 0) updateBusUI(false);
     }
   }
