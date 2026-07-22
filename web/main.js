@@ -514,7 +514,10 @@
   document.getElementById('cart-ccw').addEventListener('click', () => setTilt(tilt - 0.1));
   document.getElementById('cart-cw').addEventListener('click', () => setTilt(tilt + 0.1));
   // 息を吹く: ホコリが飛んで直ることもあれば、湿気で余計ダメになることも
+  const blowSe = new Audio('foofoo.mp3?v=' + (window.NES_VER || '0'));
   document.getElementById('cart-blow').addEventListener('click', () => {
+    blowSe.currentTime = 0;
+    blowSe.play().catch(() => {});
     for (let pin = 1; pin <= 60; pin++) {
       if (manualOff.has(pin)) {
         if (Math.random() < 0.65) manualOff.delete(pin);   // ゴミが飛んで復活
