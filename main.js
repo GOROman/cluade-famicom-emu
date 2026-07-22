@@ -19,6 +19,9 @@
     audioCount: Module._nes_audio_sample_count,
     audioClear: Module._nes_audio_clear,
     ram: Module._nes_ram,
+    setPin: Module._nes_set_pin,
+    getPin: Module._nes_get_pin,
+    resetPins: Module._nes_reset_pins,
     renderChr: Module._nes_render_chr,
     chanBuffer: Module._nes_chan_buffer,
     apuRegs: Module._nes_apu_regs,
@@ -223,6 +226,36 @@
   muteBtn.addEventListener('click', () => {
     muted = !muted;
     muteBtn.textContent = muted ? '🔇' : '🔊';
+  });
+
+  // ------------------------------------------------------------------ cartridge connector (60pin)
+  const PIN_NAMES = [null,
+    'GND', 'CPU A11', 'CPU A10', 'CPU A9', 'CPU A8', 'CPU A7', 'CPU A6', 'CPU A5',
+    'CPU A4', 'CPU A3', 'CPU A2', 'CPU A1', 'CPU A0', 'CPU R/W', '/IRQ', 'GND',
+    'PPU /RD', 'CIRAM A10', 'PPU A6', 'PPU A5', 'PPU A4', 'PPU A3', 'PPU A2',
+    'PPU A1', 'PPU A0', 'PPU D0', 'PPU D1', 'PPU D2', 'PPU D3', '+5V',
+    '+5V', 'M2', 'CPU A12', 'CPU A13', 'CPU A14', 'CPU D7', 'CPU D6', 'CPU D5',
+    'CPU D4', 'CPU D3', 'CPU D2', 'CPU D1', 'CPU D0', '/ROMSEL', 'SOUND IN',
+    'SOUND OUT', 'PPU /WR', 'CIRAM /CE', 'PPU /A13', 'PPU A7', 'PPU A8', 'PPU A9',
+    'PPU A10', 'PPU A11', 'PPU A12', 'PPU A13', 'PPU D7', 'PPU D6', 'PPU D5', 'PPU D4',
+  ];
+  const busFront = document.getElementById('bus-front');
+  const busBack = document.getElementById('bus-back');
+  for (let pin = 1; pin <= 60; pin++) {
+    const el = document.createElement('div');
+    el.className = 'pin';
+    el.dataset.pin = pin;
+    el.title = `pin ${pin}: ${PIN_NAMES[pin]}`;
+    el.innerHTML = `<b>${pin}</b>${PIN_NAMES[pin].replace(/^(CPU |PPU )/, '$1<br>').replace(' ', ' ')}`;
+    el.addEventListener('click', () => {
+      const on = api.getPin(pin) ? 0 : 1;
+      api.setPin(pin, on);
+      el.classList.toggle('off', !on);
+    });
+    (pin <= 30 ? busFront : busBack).appendChild(el);
+  }
+  document.getElementById('btn-bus').addEventListener('click', () => {
+    document.body.classList.toggle('bus-on');
   });
 
   // ------------------------------------------------------------------ gamepad
