@@ -8,7 +8,8 @@ namespace nes {
 // CPU D7..D0, /ROMSEL, sound in/out, PPU /WR, CIRAM /CE, PPU /A13, PPU A7..A13,
 // PPU D7..D4.
 void NES::updatePins() {
-    powerOk = pinOk[1] && pinOk[16] && pinOk[30] && pinOk[31];
+    // power rails are redundant: either GND pin (1/16) and either +5V pin (30/31) suffices
+    powerOk = (pinOk[1] || pinOk[16]) && (pinOk[30] || pinOk[31]);
     // CPU address: pins 2..13 = A11..A0, 33..35 = A12..A14
     prgAddrAnd = 0;
     for (int i = 0; i < 12; i++) if (pinOk[13 - i]) prgAddrAnd |= 1 << i;      // A0-A11
