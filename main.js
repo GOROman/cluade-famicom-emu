@@ -736,6 +736,55 @@
   ];
   const dbgApu = document.getElementById('dbg-apu');
   const dbgWram = document.getElementById('dbg-wram');
+  // WRAM dump: one span per byte, double-click to edit in place
+  const wramSpans = [];
+  let editingSpan = null;
+  for (let row = 0; row < 0x800; row += 16) {
+    const line = document.createElement('div');
+    const lab = document.createElement('span');
+    lab.textContent = '$' + row.toString(16).toUpperCase().padStart(4, '0') + '  ';
+    line.appendChild(lab);
+    for (let i = 0; i < 16; i++) {
+      const s = document.createElement('span');
+      s.className = 'ram-b';
+      s.dataset.addr = row + i;
+      s.textContent = '00';
+      line.appendChild(s);
+      wramSpans.push(s);
+    }
+    dbgWram.appendChild(line);
+  }
+  dbgWram.addEventListener('dblclick', (e) => {
+    const span = e.target.closest('.ram-b');
+    if (!span || editingSpan) return;
+    e.preventDefault();
+    editingSpan = span;
+    const addr = +span.dataset.addr;
+    const inp = document.createElement('input');
+    inp.className = 'ram-edit';
+    inp.maxLength = 2;
+    inp.value = span.textContent;
+    span.textContent = '';
+    span.appendChild(inp);
+    inp.focus();
+    inp.select();
+    const finish = (commit) => {
+      if (editingSpan !== span) return;
+      editingSpan = null;
+      const v = parseInt(inp.value, 16);
+      inp.remove();
+      if (commit && !isNaN(v)) Module.HEAPU8[api.ram() + addr] = v & 0xFF;
+      span.textContent = hex2(Module.HEAPU8[api.ram() + addr]);
+    };
+    // keep hotkeys (R/D/F, pad keys) from firing while typing hex
+    inp.addEventListener('keydown', (ev) => {
+      ev.stopPropagation();
+      if (ev.key === 'Enter') finish(true);
+      else if (ev.key === 'Escape') finish(false);
+    });
+    inp.addEventListener('keyup', (ev) => ev.stopPropagation());
+    inp.addEventListener('blur', () => finish(true));
+  });
   const chrCanvas = document.getElementById('chr-canvas');
   const chrCtx = chrCanvas.getContext('2d');
   const chrImage = chrCtx.createImageData(128, 256);
@@ -815,13 +864,12 @@
     dbgApu.textContent = apuText;
 
     const ram = Module.HEAPU8.subarray(api.ram(), api.ram() + 0x800);
-    let wramText = '';
-    for (let row = 0; row < 0x800; row += 16) {
-      let line = '$' + row.toString(16).toUpperCase().padStart(4, '0') + ' ';
-      for (let i = 0; i < 16; i++) line += ' ' + hex2(ram[row + i]);
-      wramText += line + '\n';
+    for (let a = 0; a < 0x800; a++) {
+      const s = wramSpans[a];
+      if (s === editingSpan) continue;   // don't clobber the byte being edited
+      const h = hex2(ram[a]);
+      if (s.textContent !== h) s.textContent = h;
     }
-    dbgWram.textContent = wramText;
 
     const chrPtr = api.renderChr(chrPal);
     if (chrPtr) {

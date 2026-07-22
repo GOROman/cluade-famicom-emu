@@ -381,6 +381,17 @@
     user-select: text;
   }
   #dbg-waves { white-space: normal; }
+  .ram-b { margin-left: 5px; cursor: pointer; border-radius: 2px; }
+  .ram-b:hover { background: #333; color: #fff; }
+  .ram-edit {
+    width: 16px;
+    background: #000;
+    color: #FFD37A;
+    border: 1px solid #888;
+    font: inherit;
+    text-transform: uppercase;
+    padding: 0;
+  }
   .wave-row { display: flex; align-items: center; gap: 4px; margin: 1px 0; }
   .wave-row span {
     width: 32px;
@@ -522,7 +533,7 @@
       </div>
       <h3>APU $4000-$4017</h3>
       <div id="dbg-apu"></div>
-      <h3>WRAM $0000-$07FF</h3>
+      <h3>WRAM $0000-$07FF (ダブルクリックで編集)</h3>
       <div id="dbg-wram"></div>
     </div>
     <div id="cart-view">
@@ -598,8 +609,8 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784719664';</script>
-<script src="nes.js?v=1784719664"></script>
-<script src="main.js?v=1784719664"></script>
+<script>window.NES_VER='1784723625';</script>
+<script src="nes.js?v=1784723625"></script>
+<script src="main.js?v=1784723625"></script>
 </body>
 </html>
