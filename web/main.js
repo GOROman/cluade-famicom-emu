@@ -18,6 +18,7 @@
     powerOn: Module._nes_power_on,
     swapRom: Module._nes_swap_rom,
     frame: Module._nes_frame,
+    runCycles: Module._nes_run_cycles,
     framebuffer: Module._nes_framebuffer,
     setButtons: Module._nes_set_buttons,
     audioBuffer: Module._nes_audio_buffer,
@@ -649,7 +650,7 @@
   const pinEls = [null];
   const manualOff = new Set();   // pins the user broke by clicking
   let tilt = 0;                  // cartridge tilt in degrees (-6 .. +6)
-  let clockMult = 1;             // CPU clock multiplier (0.1x .. 3x)
+  let clockHz = 1789773;         // CPU clock in Hz (1 .. 1789773)
   const TILT_MAX = 6;
 
   // per-signal hover explanations (localized)
@@ -765,18 +766,33 @@
   }
   cartSlider.addEventListener('input', () => setTilt(parseFloat(cartSlider.value)));
 
-  // ---- variable clock: scales frame pacing AND audio pitch (like real hardware) ----
+  // ---- variable clock: 1 Hz .. 1.79 MHz (log slider + Hz input box) ----
+  const NES_CLOCK = 1789773;
   const clockSlider = document.getElementById('clock-slider');
+  const clockInput = document.getElementById('clock-input');
   const clockLabel = document.getElementById('clock-label');
-  function setClock(mult) {
-    clockMult = Math.max(0.1, Math.min(3, mult));
-    clockSlider.value = clockMult;
-    clockLabel.textContent = `CLOCK ${(1.789773 * clockMult).toFixed(2)} MHz (\u00d7${clockMult.toFixed(2)})`;
-    const rate = audioCtx ? audioCtx.sampleRate : 44100;
-    api.init(rate / clockMult);   // APU resamples against the scaled clock
+  function fmtHz(hz) {
+    if (hz >= 1e6) return (hz / 1e6).toFixed(2) + ' MHz';
+    if (hz >= 1e3) return (hz / 1e3).toFixed(1) + ' kHz';
+    return hz + ' Hz';
   }
-  clockSlider.addEventListener('input', () => setClock(parseFloat(clockSlider.value)));
-  clockSlider.addEventListener('dblclick', () => setClock(1));
+  function setClock(hz) {
+    clockHz = Math.max(1, Math.min(NES_CLOCK, Math.round(hz)));
+    clockSlider.value = Math.log10(clockHz);
+    clockInput.value = clockHz;
+    clockLabel.textContent = 'CLOCK ' + fmtHz(clockHz);
+    // APU resample ratio follows the clock: slower clock = lower pitch
+    const rate = audioCtx ? audioCtx.sampleRate : 44100;
+    api.init(rate * NES_CLOCK / clockHz);
+  }
+  clockSlider.addEventListener('input', () => setClock(Math.pow(10, parseFloat(clockSlider.value))));
+  clockSlider.addEventListener('dblclick', () => setClock(NES_CLOCK));
+  clockInput.addEventListener('change', () => {
+    const v = parseFloat(clockInput.value);
+    if (!isNaN(v)) setClock(v); else clockInput.value = clockHz;
+  });
+  clockInput.addEventListener('keydown', (e) => e.stopPropagation());
+  clockInput.addEventListener('keyup', (e) => e.stopPropagation());
 
   // drag the cartridge itself to rotate it (pivot = bottom center)
   const cartStage = document.getElementById('cart-stage');
@@ -1170,18 +1186,18 @@
 
     acc += now - lastTime;
     lastTime = now;
-    if (acc > 100) acc = 100; // avoid spiral after tab switch
+    // at very low clocks we must accumulate enough time for at least 1 cycle
+    const accCap = Math.max(150, 2200 * 1000 / clockHz);
+    if (acc > accCap) acc = accCap;
 
     let ranFrame = false;
-    const effFrameMs = FRAME_MS / clockMult;
-    let burst = 0;
-    while (acc >= effFrameMs && burst < 8) {
-      burst++;
-      if (tilt !== 0) applyContacts();   // flaky contacts re-roll every frame
+    const wantCycles = Math.min((clockHz * acc / 1000) | 0, 240000);
+    if (wantCycles >= 1) {
+      acc -= wantCycles * 1000 / clockHz;
+      if (tilt !== 0) applyContacts();   // flaky contacts re-roll each burst
       api.setButtons(0, buttons | pollGamepad());
-      api.frame();
+      api.runCycles(wantCycles);
       window.__nes.frames++;
-      acc -= effFrameMs;
       ranFrame = true;
 
       // ship audio produced by this frame

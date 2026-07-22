@@ -253,6 +253,7 @@ public:
     void reset();      // RESET button: chips reset, RAM preserved (bug techniques!)
     void powerOn();    // power cycle: RAM cleared + reset
     void runFrame();
+    void runCycles(int n);   // sub-frame stepping for very low clock rates
 
     uint8_t cpuRead(uint16_t addr);
     void cpuWrite(uint16_t addr, uint8_t v);

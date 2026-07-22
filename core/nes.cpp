@@ -55,6 +55,22 @@ void NES::powerOn() {
     reset();
 }
 
+void NES::runCycles(int n) {
+    while (n > 0) {
+        cpu.irq(apu.irqPending() || (mapper && irqOk && mapper->irqPending()));
+        int cycles = cpu.step();
+        for (int i = 0; i < cycles; i++) {
+            apu.step();
+            ppu.step();
+            ppu.step();
+            ppu.step();
+            cycleCount++;
+            if (probePin) probeSample();
+        }
+        n -= cycles;
+    }
+}
+
 uint8_t NES::cpuRead(uint16_t addr) {
     lastCpuAddr = addr;
     lastCpuWrite = false;
@@ -203,6 +219,13 @@ API void nes_frame() {
     if (!g_nes || !g_nes->mapper) return;
     g_nes->runFrame();
     // Famicom audio loops through the cartridge (pins 45/46) — a bad contact mutes it
+    if (!g_nes->soundOk)
+        for (int i = 0; i < g_nes->apu.sampleCount; i++) g_nes->apu.sampleBuf[i] = 0;
+}
+
+API void nes_run_cycles(int n) {
+    if (!g_nes || !g_nes->mapper || n <= 0) return;
+    g_nes->runCycles(n);
     if (!g_nes->soundOk)
         for (int i = 0; i < g_nes->apu.sampleCount; i++) g_nes->apu.sampleBuf[i] = 0;
 }
