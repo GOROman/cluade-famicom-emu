@@ -545,6 +545,35 @@
     updateBusUI(true);
   }
   cartSlider.addEventListener('input', () => setTilt(parseFloat(cartSlider.value)));
+
+  // drag the cartridge itself to rotate it (pivot = bottom center)
+  const cartStage = document.getElementById('cart-stage');
+  function pointerTiltAngle(e) {
+    const r = cartStage.getBoundingClientRect();
+    const px = r.left + r.width / 2;
+    const py = r.bottom - 28;   // cart-body bottom (transform-origin)
+    return Math.atan2(e.clientX - px, py - e.clientY) * 180 / Math.PI;
+  }
+  let dragBaseAngle = 0, dragBaseTilt = 0;
+  cartBody.style.cursor = 'grab';
+  cartBody.addEventListener('pointerdown', (e) => {
+    dragBaseAngle = pointerTiltAngle(e);
+    dragBaseTilt = tilt;
+    cartBody.setPointerCapture(e.pointerId);
+    cartBody.classList.add('dragging');
+    e.preventDefault();
+  });
+  cartBody.addEventListener('pointermove', (e) => {
+    if (!cartBody.classList.contains('dragging')) return;
+    setTilt(dragBaseTilt + (pointerTiltAngle(e) - dragBaseAngle));
+  });
+  const endDrag = (e) => {
+    if (!cartBody.classList.contains('dragging')) return;
+    cartBody.classList.remove('dragging');
+    try { cartBody.releasePointerCapture(e.pointerId); } catch (_) {}
+  };
+  cartBody.addEventListener('pointerup', endDrag);
+  cartBody.addEventListener('pointercancel', endDrag);
   document.getElementById('cart-ccw').addEventListener('click', () => setTilt(tilt - 0.1));
   document.getElementById('cart-cw').addEventListener('click', () => setTilt(tilt + 0.1));
   // 息を吹く: ホコリが飛んで直ることもあれば、湿気で余計ダメになることも
