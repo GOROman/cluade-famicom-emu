@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Famicom Emulator (WASM)</title>
+<style>
+  :root {
+    --fc-cream: #E9E1D0;    /* 本体の白 */
+    --fc-red: #8F2323;      /* 本体のマルーン */
+    --fc-red-dark: #6E1A1A;
+    --fc-gold: #C9A64B;     /* コントローラの金プレート */
+    --fc-dark: #2B2622;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: #111;
+    color: #eee;
+    font-family: system-ui, sans-serif;
+    overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #111;
+  }
+  #app:fullscreen { background: #000; }
+  #toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    background: var(--fc-cream);
+    border-bottom: 4px solid var(--fc-red);
+    flex-wrap: wrap;
+  }
+  #toolbar label {
+    background: var(--fc-red);
+    color: var(--fc-cream);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    box-shadow: 0 2px 0 var(--fc-red-dark);
+  }
+  #toolbar input[type=file] { display: none; }
+  #toolbar button {
+    background: var(--fc-red);
+    color: var(--fc-cream);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 0 var(--fc-red-dark);
+  }
+  #toolbar button:active { transform: translateY(2px); box-shadow: none; }
+  #status { font-size: 12px; color: var(--fc-red-dark); font-weight: bold; }
+  #screen-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    background: #000;
+  }
+  #debug {
+    display: none;
+    width: min(340px, 45vw);
+    flex-shrink: 0;
+    overflow: auto;
+    background: #161616;
+    color: #9fdf9f;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.35;
+    padding: 8px;
+    white-space: pre;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  #debug h3 {
+    color: #ddd;
+    font-size: 12px;
+    margin: 6px 0 2px;
+    font-family: system-ui, sans-serif;
+  }
+  body.debug-on #debug { display: block; }
+  #debug-left {
+    display: none;
+    flex-shrink: 0;
+    overflow: auto;
+    background: #161616;
+    padding: 8px;
+    align-self: stretch;
+  }
+  #debug-left h3 {
+    color: #ddd;
+    font-size: 12px;
+    margin: 0 0 4px;
+    font-family: system-ui, sans-serif;
+  }
+  #chr-canvas {
+    image-rendering: pixelated;
+    width: 256px;
+    height: 512px;
+    background: #000;
+  }
+  body.debug-on #debug-left { display: block; }
+  @media (max-width: 700px) {
+    #chr-canvas { width: 128px; height: 256px; }
+  }
+  canvas#screen {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  /* virtual pad */
+  #pad {
+    display: none;
+    position: relative;
+    height: 210px;
+    background: var(--fc-gold);
+    border-top: 6px solid var(--fc-red);
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  @media (pointer: coarse) {
+    #pad { display: block; }
+  }
+  .pbtn {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--fc-dark);
+    border-radius: 8px;
+    color: var(--fc-cream);
+    font-size: 13px;
+    font-weight: bold;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.4);
+  }
+  .pbtn.active { background: var(--fc-red); box-shadow: none; transform: translateY(2px); }
+  #btn-a, #btn-b {
+    background: var(--fc-red);
+    color: var(--fc-cream);
+    box-shadow: 0 3px 0 var(--fc-red-dark);
+  }
+  #btn-a.active, #btn-b.active { background: var(--fc-red-dark); }
+  #btn-select, #btn-start {
+    background: var(--fc-red);
+    color: var(--fc-cream);
+    font-size: 11px;
+    box-shadow: 0 2px 0 var(--fc-red-dark);
+  }
+  /* d-pad: 3x3 grid at left */
+  #btn-up    { left: 68px;  bottom: 128px; width: 52px; height: 52px; }
+  #btn-down  { left: 68px;  bottom: 24px;  width: 52px; height: 52px; }
+  #btn-left  { left: 16px;  bottom: 76px;  width: 52px; height: 52px; }
+  #btn-right { left: 120px; bottom: 76px;  width: 52px; height: 52px; }
+  /* A/B at right */
+  #btn-b { right: 96px; bottom: 56px; width: 64px; height: 64px; border-radius: 50%; }
+  #btn-a { right: 16px; bottom: 88px; width: 64px; height: 64px; border-radius: 50%; }
+  /* select/start center */
+  #btn-select { left: 50%; transform: translateX(-110%); bottom: 16px; width: 72px; height: 32px; border-radius: 16px; }
+  #btn-start  { left: 50%; transform: translateX(10%);  bottom: 16px; width: 72px; height: 32px; border-radius: 16px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <label>ROMを開く<input type="file" id="rom-input" accept=".nes,application/octet-stream"></label>
+    <button id="btn-reset">リセット</button>
+    <button id="btn-mute">🔊</button>
+    <button id="btn-debug">DEBUG</button>
+    <span id="status">.NESファイルを選択してください</span>
+  </div>
+  <div id="screen-wrap">
+    <div id="debug-left">
+      <h3>CGROM (CHR)</h3>
+      <canvas id="chr-canvas" width="128" height="256"></canvas>
+    </div>
+    <canvas id="screen" width="256" height="240"></canvas>
+    <div id="debug">
+      <h3>APU $4000-$4017</h3>
+      <div id="dbg-apu"></div>
+      <h3>WRAM $0000-$07FF</h3>
+      <div id="dbg-wram"></div>
+    </div>
+  </div>
+  <div id="pad">
+    <div class="pbtn" id="btn-up" data-bit="16">▲</div>
+    <div class="pbtn" id="btn-down" data-bit="32">▼</div>
+    <div class="pbtn" id="btn-left" data-bit="64">◀</div>
+    <div class="pbtn" id="btn-right" data-bit="128">▶</div>
+    <div class="pbtn" id="btn-b" data-bit="2">B</div>
+    <div class="pbtn" id="btn-a" data-bit="1">A</div>
+    <div class="pbtn" id="btn-select" data-bit="4">SELECT</div>
+    <div class="pbtn" id="btn-start" data-bit="8">START</div>
+  </div>
+</div>
+<script src="nes.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
