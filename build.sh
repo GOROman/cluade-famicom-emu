@@ -22,4 +22,8 @@ emcc -O3 -std=c++17 \
   -sENVIRONMENT=web \
   --no-entry
 
-echo "Build OK: web/nes.js web/nes.wasm"
+# stamp a fresh version into index.html so browsers never serve stale JS/WASM
+VER=$(date +%s)
+sed -i '' -E "s/(\\?v=|NES_VER=')[0-9a-zA-Z]+/\\1${VER}/g" web/index.html
+
+echo "Build OK: web/nes.js web/nes.wasm (v=${VER})"

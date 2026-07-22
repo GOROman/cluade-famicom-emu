@@ -6,7 +6,10 @@
   const imageData = ctx.createImageData(256, 240);
   const statusEl = document.getElementById('status');
 
-  const Module = await createNesModule();
+  const Module = await createNesModule({
+    // cache-bust the .wasm fetch with the same version as the scripts
+    locateFile: (path) => path + '?v=' + (window.NES_VER || '0'),
+  });
   const api = {
     init: Module._nes_init,
     romBuffer: Module._nes_rom_buffer,
