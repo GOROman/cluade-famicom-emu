@@ -63,6 +63,11 @@
     box-shadow: 0 2px 0 var(--fc-red-dark);
   }
   #toolbar button:active { transform: translateY(2px); box-shadow: none; }
+  #btn-reset.held {
+    transform: translateY(2px);
+    box-shadow: none;
+    background: var(--fc-red-dark);
+  }
   /* famicom-style power switch: shows a lamp */
   #btn-power::before {
     content: '';
@@ -593,8 +598,8 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784719556';</script>
-<script src="nes.js?v=1784719556"></script>
-<script src="main.js?v=1784719556"></script>
+<script>window.NES_VER='1784719664';</script>
+<script src="nes.js?v=1784719664"></script>
+<script src="main.js?v=1784719664"></script>
 </body>
 </html>

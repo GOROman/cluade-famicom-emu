@@ -110,12 +110,13 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyF' && !e.repeat) { toggleFullscreen(); e.preventDefault(); return; }
-    if (e.code === 'KeyR' && !e.repeat) { if (running) api.reset(); e.preventDefault(); return; }
+    if (e.code === 'KeyR' && !e.repeat) { setResetHold(true); e.preventDefault(); return; }
     if (e.code === 'KeyD' && !e.repeat) { document.getElementById('btn-debug').click(); e.preventDefault(); return; }
     const bit = KEYMAP[e.code];
     if (bit) { buttons |= bit; e.preventDefault(); }
   });
   document.addEventListener('keyup', (e) => {
+    if (e.code === 'KeyR') { setResetHold(false); e.preventDefault(); return; }
     const bit = KEYMAP[e.code];
     if (bit) { buttons &= ~bit; e.preventDefault(); }
   });
@@ -267,9 +268,21 @@
     setPower(true);   // 電源ON(パワーオンリセット込み)
   });
 
-  document.getElementById('btn-reset').addEventListener('click', () => {
-    if (running) api.reset();
+  // リセットはレベル信号: 押している間はリセット状態(停止)、離した瞬間に再起動
+  let resetHeld = false;
+  const btnReset = document.getElementById('btn-reset');
+  function setResetHold(held) {
+    if (held === resetHeld) return;
+    resetHeld = held;
+    btnReset.classList.toggle('held', held);
+    if (!held && running) api.reset();   // オフトリガーでリセットベクタから起動
+  }
+  btnReset.addEventListener('pointerdown', (e) => {
+    setResetHold(true);
+    btnReset.setPointerCapture(e.pointerId);
   });
+  btnReset.addEventListener('pointerup', () => setResetHold(false));
+  btnReset.addEventListener('pointercancel', () => setResetHold(false));
 
   // カセット入れ替え: リセットは掛けない(電源入れっぱなし差し替え=バグ技用)
   document.getElementById('swap-input').addEventListener('change', async (e) => {
@@ -828,7 +841,7 @@
 
   function tick(now) {
     requestAnimationFrame(tick);
-    if (!running) return;
+    if (!running || resetHeld) return;   // reset held: CPU frozen in reset state
 
     acc += now - lastTime;
     lastTime = now;
