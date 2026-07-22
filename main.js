@@ -649,6 +649,7 @@
   const pinEls = [null];
   const manualOff = new Set();   // pins the user broke by clicking
   let tilt = 0;                  // cartridge tilt in degrees (-6 .. +6)
+  let clockMult = 1;             // CPU clock multiplier (0.1x .. 3x)
   const TILT_MAX = 6;
 
   // per-signal hover explanations (localized)
@@ -763,6 +764,19 @@
     updateBusUI(true);
   }
   cartSlider.addEventListener('input', () => setTilt(parseFloat(cartSlider.value)));
+
+  // ---- variable clock: scales frame pacing AND audio pitch (like real hardware) ----
+  const clockSlider = document.getElementById('clock-slider');
+  const clockLabel = document.getElementById('clock-label');
+  function setClock(mult) {
+    clockMult = Math.max(0.1, Math.min(3, mult));
+    clockSlider.value = clockMult;
+    clockLabel.textContent = `CLOCK ${(1.789773 * clockMult).toFixed(2)} MHz (\u00d7${clockMult.toFixed(2)})`;
+    const rate = audioCtx ? audioCtx.sampleRate : 44100;
+    api.init(rate / clockMult);   // APU resamples against the scaled clock
+  }
+  clockSlider.addEventListener('input', () => setClock(parseFloat(clockSlider.value)));
+  clockSlider.addEventListener('dblclick', () => setClock(1));
 
   // drag the cartridge itself to rotate it (pivot = bottom center)
   const cartStage = document.getElementById('cart-stage');
@@ -1159,12 +1173,15 @@
     if (acc > 100) acc = 100; // avoid spiral after tab switch
 
     let ranFrame = false;
-    while (acc >= FRAME_MS) {
+    const effFrameMs = FRAME_MS / clockMult;
+    let burst = 0;
+    while (acc >= effFrameMs && burst < 8) {
+      burst++;
       if (tilt !== 0) applyContacts();   // flaky contacts re-roll every frame
       api.setButtons(0, buttons | pollGamepad());
       api.frame();
       window.__nes.frames++;
-      acc -= FRAME_MS;
+      acc -= effFrameMs;
       ranFrame = true;
 
       // ship audio produced by this frame
