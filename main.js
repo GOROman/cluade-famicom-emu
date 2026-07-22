@@ -15,6 +15,8 @@
     romBuffer: Module._nes_rom_buffer,
     loadRom: Module._nes_load_rom,
     reset: Module._nes_reset,
+    powerOn: Module._nes_power_on,
+    swapRom: Module._nes_swap_rom,
     frame: Module._nes_frame,
     framebuffer: Module._nes_framebuffer,
     setButtons: Module._nes_set_buttons,
@@ -184,8 +186,46 @@
     if (document.visibilityState === 'hidden') saveSram();
   });
 
-  // ------------------------------------------------------------------ ROM load
+  // ------------------------------------------------------------------ ROM load / power
   let running = false;
+  let romLoaded = false;
+  let powered = false;
+  const btnPower = document.getElementById('btn-power');
+
+  function setPower(on) {
+    powered = on;
+    btnPower.classList.toggle('power-on', on);
+    btnPower.classList.toggle('power-off', !on);
+    running = on && romLoaded;
+    if (!on) {
+      saveSram();
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, 256, 240);
+    }
+  }
+  btnPower.addEventListener('click', () => {
+    if (!romLoaded) {
+      statusEl.textContent = '先に.NESファイルを開いてください';
+      return;
+    }
+    if (powered) {
+      setPower(false);
+    } else {
+      api.powerOn();   // 電源投入 = RAMクリア+リセット
+      setPower(true);
+    }
+  });
+
+  function keepRomCopies(buf) {
+    // PRG/CHR copies for dump diagnostics
+    const trainer = buf[6] & 0x04;
+    const off = 16 + (trainer ? 512 : 0);
+    const prgLen = buf[4] * 16384, chrLen = buf[5] * 8192;
+    lastRom = {
+      prg: buf.slice(off, off + prgLen),
+      chr: buf.slice(off + prgLen, off + prgLen + chrLen),
+    };
+  }
 
   document.getElementById('rom-input').addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -218,25 +258,46 @@
       return;
     }
     romKey = file.name + ':' + buf.length;
-    { // keep PRG/CHR copies for dump diagnostics
-      const trainer = buf[6] & 0x04;
-      const off = 16 + (trainer ? 512 : 0);
-      const prgLen = buf[4] * 16384, chrLen = buf[5] * 8192;
-      lastRom = {
-        prg: buf.slice(off, off + prgLen),
-        chr: buf.slice(off + prgLen, off + prgLen + chrLen),
-      };
-    }
+    keepRomCopies(buf);
     loadSram();
-    api.reset();
     resumeAudio(); // don't await: resume() only settles after a user gesture
     statusEl.textContent = file.name;
     document.getElementById('cart-label').textContent = file.name.replace(/\.nes$/i, '');
-    running = true;
+    romLoaded = true;
+    setPower(true);   // 電源ON(パワーオンリセット込み)
   });
 
   document.getElementById('btn-reset').addEventListener('click', () => {
     if (running) api.reset();
+  });
+
+  // カセット入れ替え: リセットは掛けない(電源入れっぱなし差し替え=バグ技用)
+  document.getElementById('swap-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    let buf;
+    try {
+      buf = new Uint8Array(await file.arrayBuffer());
+    } catch (_) {
+      statusEl.textContent = 'ROMの読み込みに失敗しました';
+      return;
+    }
+    if (buf.length > 4 * 1024 * 1024) { statusEl.textContent = 'ROMが大きすぎます'; return; }
+    saveSram();   // 旧カセットのSRAMを保存してから抜く
+    Module.HEAPU8.set(buf, api.romBuffer());
+    if (!api.swapRom(buf.length)) {
+      statusEl.textContent = '未対応のROM形式/マッパーです(入れ替え失敗)';
+      return;
+    }
+    romKey = file.name + ':' + buf.length;
+    keepRomCopies(buf);
+    loadSram();
+    romLoaded = true;
+    document.getElementById('cart-label').textContent = file.name.replace(/\.nes$/i, '');
+    statusEl.textContent = powered
+      ? `カセット入替: ${file.name} (リセットで起動 — RAMは保持)`
+      : `カセット入替: ${file.name} (電源ONで起動)`;
+    e.target.value = '';
   });
   const muteBtn = document.getElementById('btn-mute');
   muteBtn.addEventListener('click', () => {
