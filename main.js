@@ -260,11 +260,11 @@
     }
     romKey = file.name + ':' + buf.length;
     keepRomCopies(buf);
+    setCartSources(file.name, buf);
     updateRamLabels(file.name);
     loadSram();
     resumeAudio(); // don't await: resume() only settles after a user gesture
     statusEl.textContent = file.name;
-    document.getElementById('cart-label').textContent = file.name.replace(/\.nes$/i, '');
     romLoaded = true;
     setPower(true);   // 電源ON(パワーオンリセット込み)
   });
@@ -285,34 +285,109 @@
   btnReset.addEventListener('pointerup', () => setResetHold(false));
   btnReset.addEventListener('pointercancel', () => setResetHold(false));
 
-  // カセット入れ替え: リセットは掛けない(電源入れっぱなし差し替え=バグ技用)
-  document.getElementById('swap-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    let buf;
-    try {
-      buf = new Uint8Array(await file.arrayBuffer());
-    } catch (_) {
-      statusEl.textContent = 'ROMの読み込みに失敗しました';
-      return;
-    }
-    if (buf.length > 4 * 1024 * 1024) { statusEl.textContent = 'ROMが大きすぎます'; return; }
-    saveSram();   // 旧カセットのSRAMを保存してから抜く
-    Module.HEAPU8.set(buf, api.romBuffer());
-    if (!api.swapRom(buf.length)) {
+  // ---- カセット入替ダイアログ: まるごと or PRG/CHR を別カセットから合体 ----
+  const swapPanel = document.getElementById('swap-panel');
+  const swapCurrent = document.getElementById('swap-current');
+  let cartPrg = null;   // {name, header(16B), data}
+  let cartChr = null;   // {name, data}
+
+  function parseNes(buf) {
+    if (buf.length < 16 || buf[0] !== 0x4E || buf[1] !== 0x45 || buf[2] !== 0x53 || buf[3] !== 0x1A) return null;
+    const off = 16 + ((buf[6] & 0x04) ? 512 : 0);
+    const prgLen = buf[4] * 16384, chrLen = buf[5] * 8192;
+    if (off + prgLen + chrLen > buf.length) return null;
+    return {
+      header: buf.slice(0, 16),
+      prg: buf.slice(off, off + prgLen),
+      chr: buf.slice(off + prgLen, off + prgLen + chrLen),
+    };
+  }
+  function updateSwapInfo() {
+    swapCurrent.textContent = `PRG: ${cartPrg ? cartPrg.name : '-'} / CHR: ${cartChr ? cartChr.name : '-'}`;
+    const strip = (n) => n.replace(/\.nes$/i, '');
+    document.getElementById('cart-label').textContent =
+      cartPrg && cartChr && cartPrg.name !== cartChr.name
+        ? strip(cartPrg.name) + ' + ' + strip(cartChr.name)
+        : (cartPrg ? strip(cartPrg.name) : 'CASSETTE');
+  }
+  function setCartSources(name, buf) {
+    const p = parseNes(buf);
+    if (!p) return;
+    cartPrg = { name, header: p.header, data: p.prg };
+    cartChr = { name, data: p.chr };
+    updateSwapInfo();
+  }
+  // combined iNES image: mapper/mirroring follow the PRG cart's header
+  function buildCombined() {
+    const h = new Uint8Array(16);
+    h.set(cartPrg.header);
+    h[4] = cartPrg.data.length / 16384;
+    h[5] = cartChr.data.length / 8192;
+    h[6] &= ~0x04;   // trainer stripped
+    const img = new Uint8Array(16 + cartPrg.data.length + cartChr.data.length);
+    img.set(h);
+    img.set(cartPrg.data, 16);
+    img.set(cartChr.data, 16 + cartPrg.data.length);
+    return img;
+  }
+  // リセットは掛けない(電源入れっぱなし差し替え=バグ技用)
+  function applySwap() {
+    const img = buildCombined();
+    if (img.length > 4 * 1024 * 1024) { statusEl.textContent = 'ROMが大きすぎます'; return; }
+    Module.HEAPU8.set(img, api.romBuffer());
+    if (!api.swapRom(img.length)) {
       statusEl.textContent = '未対応のROM形式/マッパーです(入れ替え失敗)';
       return;
     }
-    romKey = file.name + ':' + buf.length;
-    keepRomCopies(buf);
-    updateRamLabels(file.name);
+    romKey = `${cartPrg.name}+${cartChr.name}:${img.length}`;
+    keepRomCopies(img);
+    updateRamLabels(cartPrg.name);
     loadSram();
     romLoaded = true;
-    document.getElementById('cart-label').textContent = file.name.replace(/\.nes$/i, '');
+    updateSwapInfo();
     statusEl.textContent = powered
-      ? `カセット入替: ${file.name} (リセットで起動 — RAMは保持)`
-      : `カセット入替: ${file.name} (電源ONで起動)`;
+      ? '入替完了 (リセットで起動 — RAMは保持)'
+      : '入替完了 (電源ONで起動)';
+  }
+  async function readSwapFile(e) {
+    const file = e.target.files[0];
     e.target.value = '';
+    if (!file) return null;
+    let buf;
+    try { buf = new Uint8Array(await file.arrayBuffer()); }
+    catch (_) { statusEl.textContent = 'ROMの読み込みに失敗しました'; return null; }
+    const p = parseNes(buf);
+    if (!p) { statusEl.textContent = '未対応のROM形式です'; return null; }
+    return { name: file.name, header: p.header, prg: p.prg, chr: p.chr };
+  }
+  document.getElementById('btn-swap').addEventListener('click', () => {
+    updateSwapInfo();
+    swapPanel.classList.add('show');
+  });
+  document.getElementById('swap-close').addEventListener('click', () => swapPanel.classList.remove('show'));
+  document.getElementById('swap-input').addEventListener('change', async (e) => {
+    const f = await readSwapFile(e);
+    if (!f) return;
+    saveSram();   // 旧カセットのSRAMを保存してから抜く
+    cartPrg = { name: f.name, header: f.header, data: f.prg };
+    cartChr = { name: f.name, data: f.chr };
+    applySwap();
+  });
+  document.getElementById('swap-prg-input').addEventListener('change', async (e) => {
+    const f = await readSwapFile(e);
+    if (!f) return;
+    saveSram();
+    cartPrg = { name: f.name, header: f.header, data: f.prg };
+    if (!cartChr) cartChr = { name: f.name, data: f.chr };
+    applySwap();
+  });
+  document.getElementById('swap-chr-input').addEventListener('change', async (e) => {
+    const f = await readSwapFile(e);
+    if (!f) return;
+    saveSram();
+    cartChr = { name: f.name, data: f.chr };
+    if (!cartPrg) cartPrg = { name: f.name, header: f.header, data: f.prg };
+    applySwap();
   });
   const muteBtn = document.getElementById('btn-mute');
   muteBtn.addEventListener('click', () => {
