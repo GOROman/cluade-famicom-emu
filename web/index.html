@@ -281,6 +281,19 @@
     accent-color: var(--fc-red);
     cursor: pointer;
   }
+  #clock-row { width: 100%; margin-top: 2px; }
+  #clock-row span {
+    display: block;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10px;
+    color: #9fdf9f;
+    text-align: left;
+  }
+  #clock-slider {
+    width: 100%;
+    accent-color: #4aa84a;
+    cursor: pointer;
+  }
   #cart-controls {
     display: flex;
     gap: 4px;
@@ -678,6 +691,10 @@
         </div>
       </div>
       <input type="range" id="cart-tilt" min="-6" max="6" step="0.1" value="0">
+      <div id="clock-row">
+        <span id="clock-label">CLOCK 1.79 MHz (×1.00)</span>
+        <input type="range" id="clock-slider" min="0.1" max="3" step="0.05" value="1" title="double-click = ×1.00">
+      </div>
       <div id="cart-controls">
         <button id="cart-ccw">⟲ 左回り</button>
         <span id="cart-angle">0.0°</span>
@@ -747,10 +764,10 @@ PRGとCHRを別のカセットから組み合わせた「ニコイチカセッ�
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784762326';</script>
-<script src="i18n.js?v=1784762326"></script>
-<script src="smb-ram.js?v=1784762326"></script>
-<script src="nes.js?v=1784762326"></script>
-<script src="main.js?v=1784762326"></script>
+<script>window.NES_VER='1784762667';</script>
+<script src="i18n.js?v=1784762667"></script>
+<script src="smb-ram.js?v=1784762667"></script>
+<script src="nes.js?v=1784762667"></script>
+<script src="main.js?v=1784762667"></script>
 </body>
 </html>
