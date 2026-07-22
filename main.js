@@ -527,6 +527,7 @@
     }
     applyContacts();
     updateBusUI(true);
+    api.reset();   // フーフーしたらリセットを押すのがお作法
     // 💨 演出
     const stage = document.getElementById('cart-stage');
     const puff = document.createElement('div');
