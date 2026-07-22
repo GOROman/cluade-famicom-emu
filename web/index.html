@@ -78,12 +78,12 @@
     display: none;
     background: #211d18;
     border-bottom: 4px solid var(--fc-red);
-    padding: 6px 8px 4px;
+    padding: 4px 8px 2px;
     overflow-x: auto;
     flex-shrink: 0;
   }
   body.bus-on #cartbus { display: block; }
-  .bus-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .bus-row { display: flex; align-items: center; gap: 6px; margin: 1px 0; }
   .bus-row .rowlabel {
     width: 56px;
     flex-shrink: 0;
@@ -95,7 +95,7 @@
   /* gold contact fingers of the card-edge connector */
   .pin {
     width: 17px;
-    height: 30px;
+    height: 20px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -120,7 +120,7 @@
   .pins.func { align-items: flex-start; }
   .func-label {
     width: 17px;
-    height: 52px;
+    height: 40px;
     flex-shrink: 0;
     writing-mode: vertical-rl;
     font-size: 8px;
@@ -136,7 +136,7 @@
   #bus-housing {
     position: relative;
     width: 568px;   /* 30 * (17px + 2px gap) - 2 */
-    height: 24px;
+    height: 12px;
     background: linear-gradient(#3b63c9 0%, #24418f 60%, #1a3170 100%);
     border-radius: 3px;
     border: 1px solid #14265c;
@@ -144,24 +144,17 @@
     align-items: center;
     justify-content: center;
   }
-  #bus-housing span {
-    color: #cdd8f5;
-    font-size: 10px;
-    font-family: ui-monospace, Menlo, monospace;
-    letter-spacing: 2px;
-    text-shadow: 0 1px 1px rgba(0,0,0,0.6);
-  }
   #bus-housing::before, #bus-housing::after {
     content: '';
     position: absolute;
-    top: 3px;
-    width: 16px;
-    height: 18px;
+    top: 1px;
+    width: 12px;
+    height: 10px;
     background: radial-gradient(circle 4px at 50% 50%, #0a1330 4px, #24418f 5px);
     border: 1px solid #14265c;
   }
-  #bus-housing::before { left: -17px; border-radius: 6px 0 0 6px; }
-  #bus-housing::after { right: -17px; border-radius: 0 6px 6px 0; }
+  #bus-housing::before { left: -13px; border-radius: 6px 0 0 6px; }
+  #bus-housing::after { right: -13px; border-radius: 0 6px 6px 0; }
   #bus-hint { font-size: 10px; color: #85755a; margin-top: 2px; }
   .pin.unstable {
     background: #6e5418;
@@ -482,7 +475,7 @@
   <div id="cartbus">
     <div class="bus-row"><span class="rowlabel">裏 31-60</span><div id="bus-back-func" class="pins func"></div></div>
     <div class="bus-row"><span class="rowlabel"></span><div id="bus-back" class="pins"></div></div>
-    <div class="bus-row"><span class="rowlabel"></span><div id="bus-housing"><span>CR7E-60DA-3.96E</span></div></div>
+    <div class="bus-row"><span class="rowlabel"></span><div id="bus-housing"></div></div>
     <div class="bus-row"><span class="rowlabel"></span><div id="bus-front" class="pins"></div></div>
     <div class="bus-row"><span class="rowlabel">表 1-30</span><div id="bus-front-func" class="pins func"></div></div>
     <div id="bus-hint">クリックで接点の接触不良をトグル(金=導通 / 黒=接触不良)。ホバーでピンの解説。リセットで復旧確認</div>
@@ -581,8 +574,8 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784708206';</script>
-<script src="nes.js?v=1784708206"></script>
-<script src="main.js?v=1784708206"></script>
+<script>window.NES_VER='1784714615';</script>
+<script src="nes.js?v=1784714615"></script>
+<script src="main.js?v=1784714615"></script>
 </body>
 </html>
