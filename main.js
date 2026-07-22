@@ -20,6 +20,7 @@
     audioClear: Module._nes_audio_clear,
     ram: Module._nes_ram,
     renderChr: Module._nes_render_chr,
+    chanBuffer: Module._nes_chan_buffer,
     apuRegs: Module._nes_apu_regs,
     sram: Module._nes_sram,
     sramSize: Module._nes_sram_size,
@@ -265,6 +266,50 @@
   const chrCanvas = document.getElementById('chr-canvas');
   const chrCtx = chrCanvas.getContext('2d');
   const chrImage = chrCtx.createImageData(128, 256);
+  let chrPal = 0;
+  chrCanvas.addEventListener('click', () => {
+    chrPal = (chrPal + 1) & 7;
+    document.getElementById('chr-title').textContent =
+      `CGROM (CHR) — ${chrPal < 4 ? 'BG' : 'SP'} pal ${chrPal & 3} [click]`;
+    lastDebugUpdate = 0;
+  });
+
+  // waveform scopes
+  const waveCanvases = [...document.querySelectorAll('canvas.wave')];
+  const waveCtxs = waveCanvases.map((c) => c.getContext('2d'));
+  const WAVE_SCALE = [15, 15, 15, 15, 127];  // raw level range per channel
+  let waveData = null;  // captured per frame while debug is on
+
+  function captureWave(count) {
+    const chans = [];
+    for (let i = 0; i < 5; i++) {
+      const p = api.chanBuffer(i);
+      chans.push(Module.HEAPU8.slice(p, p + count));
+    }
+    const mp = api.audioBuffer() >> 2;
+    waveData = { count, chans, mix: Module.HEAPF32.slice(mp, mp + count) };
+  }
+
+  function drawWaves() {
+    if (!waveData) return;
+    const { count, chans, mix } = waveData;
+    for (let ch = 0; ch < 6; ch++) {
+      const ctx2 = waveCtxs[ch];
+      const w = waveCanvases[ch].width, h = waveCanvases[ch].height;
+      ctx2.fillStyle = '#000';
+      ctx2.fillRect(0, 0, w, h);
+      ctx2.strokeStyle = ch === 5 ? '#ffcf5a' : '#6fdc6f';
+      ctx2.lineWidth = 1;
+      ctx2.beginPath();
+      for (let x = 0; x < w; x++) {
+        const i = Math.min(count - 1, (x * count / w) | 0);
+        const v = ch < 5 ? chans[ch][i] / WAVE_SCALE[ch] : Math.min(1, mix[i] * 2);
+        const y = h - 2 - v * (h - 4);
+        if (x === 0) ctx2.moveTo(x, y); else ctx2.lineTo(x, y);
+      }
+      ctx2.stroke();
+    }
+  }
   let debugOn = false;
   let lastDebugUpdate = 0;
   const hex2 = (v) => v.toString(16).toUpperCase().padStart(2, '0');
@@ -294,12 +339,16 @@
     }
     dbgWram.textContent = wramText;
 
-    const chrPtr = api.renderChr();
+    const chrPtr = api.renderChr(chrPal);
     if (chrPtr) {
       chrImage.data.set(Module.HEAPU8.subarray(chrPtr, chrPtr + 128 * 256 * 4));
       chrCtx.putImageData(chrImage, 0, 0);
     }
+
+    drawWaves();
   }
+  window.__nes.updateDebug = (now) => updateDebug(now);
+  window.__nes.captureWave = (c) => captureWave(c);
 
   // ------------------------------------------------------------------ main loop
   const FRAME_MS = 1000 / 60.0988; // NTSC
@@ -329,6 +378,7 @@
           const ptr = api.audioBuffer() >> 2;
           pushSamples(Module.HEAPF32.slice(ptr, ptr + count));
         }
+        if (debugOn) captureWave(count);
         api.audioClear();
       }
 
