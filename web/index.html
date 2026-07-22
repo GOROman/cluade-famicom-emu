@@ -63,7 +63,16 @@
     box-shadow: 0 2px 0 var(--fc-red-dark);
   }
   #toolbar button:active { transform: translateY(2px); box-shadow: none; }
-  #status { font-size: 12px; color: var(--fc-red-dark); font-weight: bold; }
+  #status {
+    font-size: 12px;
+    color: var(--fc-red-dark);
+    font-weight: bold;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   #screen-wrap {
     flex: 1;
     display: flex;
@@ -74,19 +83,28 @@
   }
   #debug {
     display: none;
-    width: min(340px, 45vw);
+    width: min(370px, 40vw);
+    max-height: 100%;
     flex-shrink: 0;
     overflow: auto;
     background: #161616;
     color: #9fdf9f;
     font-family: ui-monospace, Menlo, monospace;
-    font-size: 11px;
+    font-size: 10px;
     line-height: 1.35;
     padding: 8px;
     white-space: pre;
     -webkit-user-select: text;
     user-select: text;
   }
+  .wave-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .wave-row span {
+    width: 32px;
+    color: #ddd;
+    font-size: 10px;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .wave-row canvas { background: #000; border: 1px solid #333; }
   #debug h3 {
     color: #ddd;
     font-size: 12px;
@@ -96,6 +114,8 @@
   body.debug-on #debug { display: block; }
   #debug-left {
     display: none;
+    width: min(276px, 25vw);
+    max-height: 100%;
     flex-shrink: 0;
     overflow: auto;
     background: #161616;
@@ -110,22 +130,20 @@
   }
   #chr-canvas {
     image-rendering: pixelated;
-    width: 256px;
-    height: 512px;
+    width: 100%;
+    aspect-ratio: 1 / 2;
+    height: auto;
     background: #000;
+    cursor: pointer;
   }
   body.debug-on #debug-left { display: block; }
-  @media (max-width: 700px) {
-    #chr-canvas { width: 128px; height: 256px; }
-  }
   canvas#screen {
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
     height: 100%;
     object-fit: contain;
-    max-width: 100%;
-    max-height: 100%;
   }
   /* virtual pad */
   #pad {
@@ -189,11 +207,20 @@
   </div>
   <div id="screen-wrap">
     <div id="debug-left">
-      <h3>CGROM (CHR)</h3>
-      <canvas id="chr-canvas" width="128" height="256"></canvas>
+      <h3 id="chr-title">CGROM (CHR) — pal 0 [click]</h3>
+      <canvas id="chr-canvas" width="128" height="256" title="クリックでパレット切替"></canvas>
     </div>
     <canvas id="screen" width="256" height="240"></canvas>
     <div id="debug">
+      <h3>APU 波形</h3>
+      <div id="dbg-waves">
+        <div class="wave-row"><span>SQ1</span><canvas class="wave" width="280" height="32"></canvas></div>
+        <div class="wave-row"><span>SQ2</span><canvas class="wave" width="280" height="32"></canvas></div>
+        <div class="wave-row"><span>TRI</span><canvas class="wave" width="280" height="32"></canvas></div>
+        <div class="wave-row"><span>NOI</span><canvas class="wave" width="280" height="32"></canvas></div>
+        <div class="wave-row"><span>DMC</span><canvas class="wave" width="280" height="32"></canvas></div>
+        <div class="wave-row"><span>MIX</span><canvas class="wave" width="280" height="32"></canvas></div>
+      </div>
       <h3>APU $4000-$4017</h3>
       <div id="dbg-apu"></div>
       <h3>WRAM $0000-$07FF</h3>

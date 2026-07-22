@@ -231,8 +231,15 @@ void APU::step() {
     sampleTimer_ += 1.0;
     if (sampleTimer_ >= cyclesPerSample_) {
         sampleTimer_ -= cyclesPerSample_;
-        if (sampleCount < (int)(sizeof(sampleBuf) / sizeof(float)))
-            sampleBuf[sampleCount++] = mix();
+        if (sampleCount < (int)(sizeof(sampleBuf) / sizeof(float))) {
+            sampleBuf[sampleCount] = mix();
+            chanBuf[0][sampleCount] = (uint8_t)pulse1_.output();
+            chanBuf[1][sampleCount] = (uint8_t)pulse2_.output();
+            chanBuf[2][sampleCount] = (uint8_t)triangle_.output();
+            chanBuf[3][sampleCount] = (uint8_t)noise_.output();
+            chanBuf[4][sampleCount] = dmc_.outputLevel;
+            sampleCount++;
+        }
     }
 }
 

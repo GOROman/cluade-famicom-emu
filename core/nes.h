@@ -90,6 +90,7 @@ public:
 
     bool frameReady = false;    // set at end of each frame; consumer clears
     uint32_t framebuffer[256 * 240] = {};
+    const uint8_t* paletteRam() const { return palette_; }
 
 private:
     NES& nes_;
@@ -142,6 +143,8 @@ public:
     // audio output: float samples accumulated per frame
     float sampleBuf[2048] = {};
     int sampleCount = 0;
+    // per-channel raw levels at each sample point (debug scope): p1,p2,tri,noise,dmc
+    uint8_t chanBuf[5][2048] = {};
     void setSampleRate(double rate) { cyclesPerSample_ = 1789773.0 / rate; }
 
 private:

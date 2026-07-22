@@ -110,9 +110,17 @@ API int nes_sram_size() {
 // CHR pattern tables rendered as a 128x256 RGBA image (table 0 on top, 1 below)
 static uint32_t g_chrImage[128 * 256];
 
-API uint32_t* nes_render_chr() {
+API uint32_t* nes_render_chr(int palIdx) {
     if (!g_nes || !g_nes->mapper) return nullptr;
-    static const uint32_t SHADES[4] = {0xFF000000, 0xFF555555, 0xFFAAAAAA, 0xFFFFFFFF};
+    // colorize with the current PPU palette (palIdx 0-3: BG, 4-7: sprite)
+    const uint8_t* pal = g_nes->ppu.paletteRam();
+    palIdx &= 7;
+    const uint32_t SHADES[4] = {
+        nes::NES_PALETTE[pal[0] & 0x3F],
+        nes::NES_PALETTE[pal[palIdx * 4 + 1] & 0x3F],
+        nes::NES_PALETTE[pal[palIdx * 4 + 2] & 0x3F],
+        nes::NES_PALETTE[pal[palIdx * 4 + 3] & 0x3F],
+    };
     for (int table = 0; table < 2; table++) {
         for (int tile = 0; tile < 256; tile++) {
             int baseX = (tile & 15) * 8;
@@ -133,6 +141,9 @@ API uint32_t* nes_render_chr() {
 
 API uint8_t* nes_ram() { return g_nes ? g_nes->ram : nullptr; }
 API uint8_t* nes_apu_regs() { return g_nes ? g_nes->apuRegShadow : nullptr; }
+API uint8_t* nes_chan_buffer(int ch) {
+    return (g_nes && ch >= 0 && ch < 5) ? g_nes->apu.chanBuf[ch] : nullptr;
+}
 
 API int nes_has_battery() {
     return (g_nes && g_nes->mapper && g_nes->mapper->hasBattery()) ? 1 : 0;
