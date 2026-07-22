@@ -381,8 +381,19 @@
     user-select: text;
   }
   #dbg-waves { white-space: normal; }
-  .ram-b { margin-left: 5px; cursor: pointer; border-radius: 2px; }
+  .ram-b {
+    margin-left: 5px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.9s ease-out, color 0.9s ease-out, text-shadow 0.9s ease-out;
+  }
   .ram-b:hover { background: #333; color: #fff; }
+  .ram-b.hot {
+    background: #7a5c10;
+    color: #FFEA8C;
+    text-shadow: 0 0 6px #FFC93C;
+    transition: none;
+  }
   .ram-edit {
     width: 16px;
     background: #000;
@@ -609,8 +620,8 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784723625';</script>
-<script src="nes.js?v=1784723625"></script>
-<script src="main.js?v=1784723625"></script>
+<script>window.NES_VER='1784723810';</script>
+<script src="nes.js?v=1784723810"></script>
+<script src="main.js?v=1784723810"></script>
 </body>
 </html>
