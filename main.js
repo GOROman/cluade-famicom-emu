@@ -197,7 +197,15 @@
     }
     Module.HEAPU8.set(buf, ptr);
     if (!api.loadRom(buf.length)) {
-      statusEl.textContent = '未対応のROM形式/マッパーです';
+      let info = '';
+      if (buf.length >= 16 && buf[0] === 0x4E && buf[1] === 0x45 && buf[2] === 0x53 && buf[3] === 0x1A) {
+        const dirty = buf[12] || buf[13] || buf[14] || buf[15];
+        const mapper = (buf[6] >> 4) | (dirty ? 0 : (buf[7] & 0xF0));
+        info = ` (mapper ${mapper}, PRG ${buf[4] * 16}KB, CHR ${buf[5] * 8}KB)`;
+      } else {
+        info = ' (iNESヘッダなし)';
+      }
+      statusEl.textContent = '未対応のROM形式/マッパーです' + info;
       return;
     }
     romKey = file.name + ':' + buf.length;
