@@ -291,6 +291,7 @@ public:
     uint16_t lastPpuAddr = 0; uint8_t lastPpuData = 0;
     bool ppuRdPulse = false, ppuWrPulse = false, lastCiramA10 = false;
     void probeSample();
+    uint8_t probeLevelFor(int pin);
     uint8_t cpuReadBus(uint16_t addr);
 };
 

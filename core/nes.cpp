@@ -141,10 +141,9 @@ void NES::runFrame() {
 
 // Sample the probed pin's logic level once per CPU cycle.
 // Digital levels use 30/220 so the trace reads like a real scope.
-void nes::NES::probeSample() {
+uint8_t nes::NES::probeLevelFor(int p) {
     auto dig = [](bool b) -> uint8_t { return b ? 220 : 30; };
     uint8_t v = 30;
-    int p = probePin;
     switch (p) {
     case 1: case 16: v = 30; break;                                 // GND
     case 30: case 31: v = 220; break;                               // +5V
@@ -176,7 +175,11 @@ void nes::NES::probeSample() {
         else if (p >= 57 && p <= 60) v = dig((lastPpuData >> (64 - p)) & 1);  // PPU D7..D4
         break;
     }
-    probeBuf[probePos] = v;
+    return v;
+}
+
+void nes::NES::probeSample() {
+    probeBuf[probePos] = probeLevelFor(probePin);
     probePos = (probePos + 1) & 2047;
     ppuRdPulse = ppuWrPulse = false;
 }
@@ -339,6 +342,9 @@ API void nes_set_probe(int pin) {
     if (g_nes && pin >= 0 && pin <= 63) g_nes->probePin = pin;
 }
 API uint8_t* nes_probe_buffer() { return g_nes ? g_nes->probeBuf : nullptr; }
+API int nes_probe_level() {
+    return g_nes ? g_nes->probeLevelFor(g_nes->probePin) : 0;
+}
 API int nes_probe_pos() { return g_nes ? g_nes->probePos : 0; }
 API void nes_set_channel(int ch, int on) {
     if (g_nes && ch >= 0 && ch < 5) g_nes->apu.chanEnable[ch] = on != 0;
