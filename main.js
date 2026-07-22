@@ -310,15 +310,18 @@
   // --- cartridge front view / rotation controls ---
   const cartBody = document.getElementById('cart-body');
   const cartAngle = document.getElementById('cart-angle');
+  const cartSlider = document.getElementById('cart-tilt');
   function setTilt(t) {
-    tilt = Math.max(-TILT_MAX, Math.min(TILT_MAX, t));
+    tilt = Math.max(-TILT_MAX, Math.min(TILT_MAX, Math.round(t * 10) / 10));
     cartBody.style.transform = `rotate(${tilt}deg)`;
-    cartAngle.textContent = (tilt > 0 ? '+' : '') + tilt + '\u00b0';
+    cartAngle.textContent = (tilt > 0 ? '+' : '') + tilt.toFixed(1) + '\u00b0';
+    cartSlider.value = tilt;
     applyContacts();
     updateBusUI(true);
   }
-  document.getElementById('cart-ccw').addEventListener('click', () => setTilt(tilt - 1));
-  document.getElementById('cart-cw').addEventListener('click', () => setTilt(tilt + 1));
+  cartSlider.addEventListener('input', () => setTilt(parseFloat(cartSlider.value)));
+  document.getElementById('cart-ccw').addEventListener('click', () => setTilt(tilt - 0.1));
+  document.getElementById('cart-cw').addEventListener('click', () => setTilt(tilt + 0.1));
   document.getElementById('cart-straight').addEventListener('click', () => {
     manualOff.clear();
     setTilt(0);
