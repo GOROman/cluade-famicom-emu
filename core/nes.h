@@ -145,6 +145,8 @@ public:
     int sampleCount = 0;
     // per-channel raw levels at each sample point (debug scope): p1,p2,tri,noise,dmc
     uint8_t chanBuf[5][2048] = {};
+    // per-channel mute switches (UI): p1,p2,tri,noise,dmc
+    bool chanEnable[5] = {true, true, true, true, true};
     void setSampleRate(double rate) { cyclesPerSample_ = 1789773.0 / rate; }
 
 private:

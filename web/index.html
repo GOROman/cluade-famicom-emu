@@ -92,29 +92,76 @@
     font-family: ui-monospace, Menlo, monospace;
   }
   .pins { display: flex; gap: 2px; }
+  /* gold contact fingers of the card-edge connector */
   .pin {
-    width: 22px;
-    height: 24px;
+    width: 17px;
+    height: 30px;
     flex-shrink: 0;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(#E5C877, #B8923C);
+    background: linear-gradient(90deg, #8a6a24 0%, #E5C877 30%, #FFF0B8 50%, #D8B052 70%, #8a6a24 100%);
     color: #4a3510;
-    font-size: 8px;
-    line-height: 1.1;
+    font-size: 9px;
+    font-weight: bold;
     font-family: ui-monospace, Menlo, monospace;
-    border-radius: 2px 2px 0 0;
     cursor: pointer;
     text-align: center;
   }
-  .pin b { font-size: 9px; }
+  /* back row: tips point up / front row: tips point down */
+  #bus-back .pin { border-radius: 7px 7px 1px 1px; }
+  #bus-front .pin { border-radius: 1px 1px 7px 7px; }
   .pin.off {
     background: #151312;
     color: #E05555;
     box-shadow: inset 0 0 0 1px #E05555;
   }
+  /* function label rows (above back / below front), vertical text */
+  .pins.func { align-items: flex-start; }
+  .func-label {
+    width: 17px;
+    height: 52px;
+    flex-shrink: 0;
+    writing-mode: vertical-rl;
+    font-size: 8px;
+    line-height: 1;
+    color: #b7a374;
+    font-family: ui-monospace, Menlo, monospace;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  /* blue connector housing bar with mounting ears */
+  #bus-housing {
+    position: relative;
+    width: 568px;   /* 30 * (17px + 2px gap) - 2 */
+    height: 24px;
+    background: linear-gradient(#3b63c9 0%, #24418f 60%, #1a3170 100%);
+    border-radius: 3px;
+    border: 1px solid #14265c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #bus-housing span {
+    color: #cdd8f5;
+    font-size: 10px;
+    font-family: ui-monospace, Menlo, monospace;
+    letter-spacing: 2px;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.6);
+  }
+  #bus-housing::before, #bus-housing::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    width: 16px;
+    height: 18px;
+    background: radial-gradient(circle 4px at 50% 50%, #0a1330 4px, #24418f 5px);
+    border: 1px solid #14265c;
+  }
+  #bus-housing::before { left: -17px; border-radius: 6px 0 0 6px; }
+  #bus-housing::after { right: -17px; border-radius: 0 6px 6px 0; }
   #bus-hint { font-size: 10px; color: #85755a; margin-top: 2px; }
   .pin.unstable {
     background: #6e5418;
@@ -327,6 +374,9 @@
     font-family: ui-monospace, Menlo, monospace;
   }
   .wave-row canvas { background: #000; border: 1px solid #333; }
+  .wave-row span.chan-toggle { cursor: pointer; }
+  .wave-row span.chan-toggle:hover { color: #fff; }
+  .wave-row span.muted { color: #555; text-decoration: line-through; }
   #debug h3 {
     color: #ddd;
     font-size: 12px;
@@ -430,9 +480,12 @@
     <span id="status">.NESファイルを選択してください</span>
   </div>
   <div id="cartbus">
-    <div class="bus-row"><span class="rowlabel">裏 31-60</span><div id="bus-back" class="pins"></div></div>
-    <div class="bus-row"><span class="rowlabel">表 1-30</span><div id="bus-front" class="pins"></div></div>
-    <div id="bus-hint">クリックで接点の接触不良をトグル(金=導通 / 黒=接触不良)。リセットで復旧確認</div>
+    <div class="bus-row"><span class="rowlabel">裏 31-60</span><div id="bus-back-func" class="pins func"></div></div>
+    <div class="bus-row"><span class="rowlabel"></span><div id="bus-back" class="pins"></div></div>
+    <div class="bus-row"><span class="rowlabel"></span><div id="bus-housing"><span>CR7E-60DA-3.96E</span></div></div>
+    <div class="bus-row"><span class="rowlabel"></span><div id="bus-front" class="pins"></div></div>
+    <div class="bus-row"><span class="rowlabel">表 1-30</span><div id="bus-front-func" class="pins func"></div></div>
+    <div id="bus-hint">クリックで接点の接触不良をトグル(金=導通 / 黒=接触不良)。ホバーでピンの解説。リセットで復旧確認</div>
   </div>
   <div id="screen-wrap">
     <div id="debug-left">
@@ -528,8 +581,8 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784707712';</script>
-<script src="nes.js?v=1784707712"></script>
-<script src="main.js?v=1784707712"></script>
+<script>window.NES_VER='1784708206';</script>
+<script src="nes.js?v=1784708206"></script>
+<script src="main.js?v=1784708206"></script>
 </body>
 </html>

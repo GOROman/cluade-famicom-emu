@@ -27,6 +27,7 @@
     resetPins: Module._nes_reset_pins,
     renderChr: Module._nes_render_chr,
     chanBuffer: Module._nes_chan_buffer,
+    setChannel: Module._nes_set_channel,
     apuRegs: Module._nes_apu_regs,
     sram: Module._nes_sram,
     sramSize: Module._nes_sram_size,
@@ -441,12 +442,38 @@
   let tilt = 0;                  // cartridge tilt in degrees (-6 .. +6)
   const TILT_MAX = 6;
 
+  // per-signal hover explanations
+  function pinDesc(name) {
+    if (name === 'GND') return '電源グランド。1/16番のどちらかが導通していれば動作';
+    if (name === '+5V') return '電源+5V。30/31番のどちらかが導通していれば動作';
+    if (/^CPU A/.test(name)) return `CPUアドレスバス ${name.slice(4)}。PRG ROM/RAM・マッパーレジスタのアドレス指定。断線するとビットが落ちて別アドレスを読み、暴走しやすい`;
+    if (/^CPU D/.test(name)) return `CPUデータバス ${name.slice(4)}。命令・データの読み書き。断線するとオープンバス値に化けて暴走やバグ挙動`;
+    if (name === 'CPU R/W') return 'CPU読み書き制御。断線するとマッパーレジスタ等への書き込みが効かない';
+    if (name === '/IRQ') return 'カートリッジ→CPUの割り込み要求。MMC3のスキャンラインIRQ等が届かなくなる';
+    if (name === 'M2') return 'CPUクロック(φ2)。カートリッジの動作タイミング基準。断線すると応答不能';
+    if (name === '/ROMSEL') return '$8000以降のアクセスでPRG ROMを選択。断線すると起動不能';
+    if (name === 'SOUND IN') return '本体APU音声のカートリッジ入力。音声はカートを経由するため断線すると無音';
+    if (name === 'SOUND OUT') return 'カートリッジからRF/映像回路への音声出力。断線すると無音';
+    if (name === 'PPU /RD') return 'PPU読み出し制御。断線するとCHR(グラフィック)が読めず画面が化ける';
+    if (name === 'PPU /WR') return 'PPU書き込み制御。CHR RAMゲームで書き込み不能に';
+    if (name === 'CIRAM A10') return '本体内ネームテーブルRAMのA10。カートがPPU A10/A11から生成しミラーリング(縦/横)を決める';
+    if (name === 'CIRAM /CE') return '本体内ネームテーブルRAMの選択。断線すると背景データ全滅';
+    if (name === 'PPU /A13') return 'PPU A13の反転。多くのカートでCIRAM /CEの駆動に直結';
+    if (/^PPU A/.test(name)) return `PPUアドレスバス ${name.slice(4)}。CHR ROM/RAMのアドレス指定。断線すると文字やスプライトが似た別の絵に化ける`;
+    if (/^PPU D/.test(name)) return `PPUデータバス ${name.slice(4)}。パターンデータ転送。断線すると縞状のグラフィック化け`;
+    return '';
+  }
+
+  const busBackFunc = document.getElementById('bus-back-func');
+  const busFrontFunc = document.getElementById('bus-front-func');
   for (let pin = 1; pin <= 60; pin++) {
+    const name = PIN_NAMES[pin];
+    const tip = `pin ${pin}: ${name}\n${pinDesc(name)}`;
     const el = document.createElement('div');
     el.className = 'pin';
     el.dataset.pin = pin;
-    el.title = `pin ${pin}: ${PIN_NAMES[pin]}`;
-    el.innerHTML = `<b>${pin}</b>` + PIN_NAMES[pin].replace(/^(CPU |PPU )/, '$1<br>');
+    el.title = tip;
+    el.innerHTML = `<b>${pin}</b>`;
     el.addEventListener('click', () => {
       if (manualOff.has(pin)) manualOff.delete(pin);
       else manualOff.add(pin);
@@ -455,6 +482,12 @@
     });
     pinEls[pin] = el;
     (pin <= 30 ? busFront : busBack).appendChild(el);
+    // function label above (back row) / below (front row)
+    const fl = document.createElement('div');
+    fl.className = 'func-label';
+    fl.textContent = name;
+    fl.title = tip;
+    (pin <= 30 ? busFrontFunc : busBackFunc).appendChild(fl);
   }
   document.getElementById('btn-bus').addEventListener('click', () => {
     document.body.classList.toggle('bus-on');
@@ -614,6 +647,17 @@
   // waveform scopes
   const waveCanvases = [...document.querySelectorAll('canvas.wave')];
   const waveCtxs = waveCanvases.map((c) => c.getContext('2d'));
+  // channel mute toggles: click the SQ1/SQ2/TRI/NOI/DMC labels
+  const chanOn = [true, true, true, true, true];
+  [...document.querySelectorAll('#dbg-waves .wave-row span')].slice(0, 5).forEach((span, ch) => {
+    span.classList.add('chan-toggle');
+    span.title = 'クリックでこのチャンネルをミュート';
+    span.addEventListener('click', () => {
+      chanOn[ch] = !chanOn[ch];
+      api.setChannel(ch, chanOn[ch] ? 1 : 0);
+      span.classList.toggle('muted', !chanOn[ch]);
+    });
+  });
   const WAVE_SCALE = [15, 15, 15, 15, 127];  // raw level range per channel
   let waveData = null;  // captured per frame while debug is on
 

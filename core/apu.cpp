@@ -182,11 +182,11 @@ void APU::stepDmc() {
 }
 
 float APU::mix() const {
-    int p = pulse1_.output() + pulse2_.output();
+    int p = (chanEnable[0] ? pulse1_.output() : 0) + (chanEnable[1] ? pulse2_.output() : 0);
     float pulseOut = p ? 95.88f / (8128.0f / p + 100.0f) : 0.0f;
-    float t = triangle_.output() / 8227.0f;
-    float n = noise_.output() / 12241.0f;
-    float d = dmc_.outputLevel / 22638.0f;
+    float t = chanEnable[2] ? triangle_.output() / 8227.0f : 0.0f;
+    float n = chanEnable[3] ? noise_.output() / 12241.0f : 0.0f;
+    float d = chanEnable[4] ? dmc_.outputLevel / 22638.0f : 0.0f;
     float tnd = (t + n + d) ? 159.79f / (1.0f / (t + n + d) + 100.0f) : 0.0f;
     return pulseOut + tnd;
 }

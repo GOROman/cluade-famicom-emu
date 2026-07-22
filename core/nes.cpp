@@ -211,6 +211,9 @@ API uint32_t* nes_render_chr(int palIdx) {
 
 API uint8_t* nes_ram() { return g_nes ? g_nes->ram : nullptr; }
 API uint8_t* nes_apu_regs() { return g_nes ? g_nes->apuRegShadow : nullptr; }
+API void nes_set_channel(int ch, int on) {
+    if (g_nes && ch >= 0 && ch < 5) g_nes->apu.chanEnable[ch] = on != 0;
+}
 API uint8_t* nes_chan_buffer(int ch) {
     return (g_nes && ch >= 0 && ch < 5) ? g_nes->apu.chanBuf[ch] : nullptr;
 }
