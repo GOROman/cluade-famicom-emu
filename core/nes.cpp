@@ -316,7 +316,7 @@ API int nes_peek(int addr) {
     return g_nes->mapper ? g_nes->mapper->cpuRead(a) : 0;
 }
 
-static uint8_t g_cpuRegs[8];
+static uint8_t g_cpuRegs[12];
 API uint8_t* nes_cpu_regs() {
     if (!g_nes) return g_cpuRegs;
     const auto& c = g_nes->cpu;
@@ -327,6 +327,11 @@ API uint8_t* nes_cpu_regs() {
     g_cpuRegs[4] = c.y;
     g_cpuRegs[5] = c.sp;
     g_cpuRegs[6] = (c.fN << 7) | (c.fV << 6) | 0x20 | (c.fD << 3) | (c.fI << 2) | (c.fZ << 1) | (uint8_t)c.fC;
+    uint32_t f = g_nes->ppu.frameCount;
+    g_cpuRegs[8] = f & 0xFF;
+    g_cpuRegs[9] = (f >> 8) & 0xFF;
+    g_cpuRegs[10] = (f >> 16) & 0xFF;
+    g_cpuRegs[11] = (f >> 24) & 0xFF;
     return g_cpuRegs;
 }
 

@@ -67,6 +67,7 @@
     set('btn-bus', 'bus');
     set('btn-debug', 'debug');
     set('btn-xev', 'xevCheck');
+    set('btn-tas', 'tas');
     set('bus-hint', 'busHint');
     set('cart-title-h3', 'cartTitle');
     set('cart-ccw', 'ccw');
@@ -869,6 +870,64 @@
     updateBusUI(true);
   });
 
+  // ------------------------------------------------------------------ TAS (FM2) playback
+  let tasFrames = null;
+  let tasIndex = 0;
+
+  function parseFm2(text) {
+    const frames = [];
+    const map = [128, 64, 32, 16, 8, 4, 2, 1];   // R L D U T(Start) S(Select) B A
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.startsWith('|')) continue;
+      const parts = line.split('|');
+      const cmd = parseInt(parts[1], 10) || 0;
+      const p0 = parts[2] || '';
+      let bits = 0;
+      for (let i = 0; i < 8 && i < p0.length; i++) {
+        const ch = p0[i];
+        if (ch !== '.' && ch !== ' ') bits |= map[i];
+      }
+      frames.push({ cmd, bits });
+    }
+    return frames.length ? frames : null;
+  }
+
+  function tasStop(msg) {
+    tasFrames = null;
+    tasIndex = 0;
+    document.getElementById('btn-tas').classList.remove('tas-on');
+    if (msg) statusEl.textContent = msg;
+  }
+
+  function tasStart(frames) {
+    // deterministic start: power cycle + FCEUX-style RAM pattern (00x4 FFx4)
+    api.powerOn();
+    const ramPtr = api.ram();
+    for (let i = 0; i < 0x800; i++) Module.HEAPU8[ramPtr + i] = (i & 4) ? 0xFF : 0x00;
+    api.reset();   // vectors fetched fresh after the pattern fill
+    tasFrames = frames;
+    tasIndex = 0;
+    setPower(true);
+    document.getElementById('btn-tas').classList.add('tas-on');
+    statusEl.textContent = t('tasPlaying', { cur: 0, total: frames.length });
+  }
+
+  document.getElementById('btn-tas').addEventListener('click', () => {
+    if (tasFrames) { tasStop(t('tasStopped')); return; }
+    if (!romLoaded) { statusEl.textContent = t('needRom'); return; }
+    document.getElementById('tas-input').click();
+  });
+  document.getElementById('tas-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    let text;
+    try { text = await file.text(); } catch (_) { statusEl.textContent = t('readFail'); return; }
+    const frames = parseFm2(text);
+    if (!frames) { statusEl.textContent = t('tasBad'); return; }
+    tasStart(frames);
+  });
+
   // ------------------------------------------------------------------ oscilloscope probe
   const probeScope = document.getElementById('probe-scope');
   const probeLabel = document.getElementById('probe-label');
@@ -1218,13 +1277,14 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
     if (!debugOn || now - lastDebugUpdate < 100) return;
     lastDebugUpdate = now;
     {
-      const c = Module.HEAPU8.subarray(api.cpuRegs(), api.cpuRegs() + 7);
+      const c = Module.HEAPU8.subarray(api.cpuRegs(), api.cpuRegs() + 12);
       const pc = c[0] | (c[1] << 8);
       const p = c[6];
       const flags = ['C','Z','I','D','B','-','V','N']
         .map((f, i) => (p >> i) & 1 ? f : f.toLowerCase()).reverse().join('');
+      const frameN = c[8] | (c[9] << 8) | (c[10] << 16) | (c[11] << 24);
       document.getElementById('dbg-cpu').textContent =
-        `PC=${pc.toString(16).toUpperCase().padStart(4, '0')}  A=${hex2(c[2])} X=${hex2(c[3])} Y=${hex2(c[4])}  SP=${hex2(c[5])}  P=${hex2(p)} [${flags}]`;
+        `PC=${pc.toString(16).toUpperCase().padStart(4, '0')}  A=${hex2(c[2])} X=${hex2(c[3])} Y=${hex2(c[4])}  SP=${hex2(c[5])}  P=${hex2(p)} [${flags}]  FRAME=${frameN}`;
       renderDisasm(pc);
     }
     const regs = Module.HEAPU8.subarray(api.apuRegs(), api.apuRegs() + 0x18);
@@ -1293,6 +1353,36 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
     if (acc > accCap) acc = accCap;
 
     let ranFrame = false;
+    if (tasFrames) {
+      // TAS: strict frame stepping with the movie's inputs
+      const effFrameMs = FRAME_MS * NES_CLOCK / clockHz;
+      let burst = 0;
+      while (tasFrames && acc >= effFrameMs && burst < 8) {
+        burst++;
+        acc -= effFrameMs;
+        const f = tasFrames[tasIndex];
+        if (f.cmd & 2) api.powerOn();
+        else if (f.cmd & 1) api.reset();
+        api.setButtons(0, f.bits);
+        api.frame();
+        window.__nes.frames++;
+        ranFrame = true;
+        tasIndex++;
+        if (tasIndex % 30 === 0) statusEl.textContent = t('tasPlaying', { cur: tasIndex, total: tasFrames.length });
+        if (tasIndex >= tasFrames.length) tasStop(t('tasDone'));
+      }
+      if (ranFrame) {
+        const count = api.audioCount();
+        if (count > 0) {
+          if (pushSamples && !muted) {
+            const ptr = api.audioBuffer() >> 2;
+            pushSamples(Module.HEAPF32.slice(ptr, ptr + count));
+          }
+          if (debugOn) captureWave(count);
+          api.audioClear();
+        }
+      }
+    } else {
     const wantCycles = Math.min((clockHz * acc / 1000) | 0, 240000);
     if (wantCycles >= 1) {
       acc -= wantCycles * 1000 / clockHz;
@@ -1317,6 +1407,7 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
       if (++sramDirty >= 300) { sramDirty = 0; saveSram(); }
     }
 
+    }
     if (ranFrame) {
       const ptr = api.framebuffer();
       imageData.data.set(Module.HEAPU8.subarray(ptr, ptr + 256 * 240 * 4));

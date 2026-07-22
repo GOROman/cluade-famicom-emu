@@ -89,6 +89,7 @@ public:
     void writeOamDma(uint8_t v, const uint8_t* page);
 
     bool frameReady = false;    // set at end of each frame; consumer clears
+    uint32_t frameCount = 0;    // frames since reset/power-on
     uint32_t framebuffer[256 * 240] = {};
     const uint8_t* paletteRam() const { return palette_; }
     // level of the PPU→CPU NMI output (true = asserted)

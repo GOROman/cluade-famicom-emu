@@ -21,6 +21,7 @@ void PPU::reset() {
     scanline_ = 261; dot_ = 0;
     oddFrame_ = false;
     frameReady = false;
+    frameCount = 0;
 }
 
 uint16_t PPU::ntMirror(uint16_t addr) {
@@ -309,6 +310,7 @@ void PPU::step() {
         status_ |= 0x80;
         if (ctrl_ & 0x80) nes_.cpu.nmi();
         frameReady = true;
+        frameCount++;
     }
     if (prerender && dot_ == 1) {
         status_ &= ~(0x80 | 0x40 | 0x20);

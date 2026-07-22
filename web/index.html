@@ -63,6 +63,10 @@
     box-shadow: 0 2px 0 var(--fc-red-dark);
   }
   #toolbar button:active { transform: translateY(2px); box-shadow: none; }
+  #btn-tas.tas-on {
+    background: #2e7d32;
+    box-shadow: 0 2px 0 #1b4d1e;
+  }
   #btn-reset.held {
     transform: translateY(2px);
     box-shadow: none;
@@ -683,6 +687,8 @@
     <button id="btn-debug">DEBUG</button>
     <button id="btn-bus">端子</button>
     <button id="btn-xev" hidden>XEVIOUS判定</button>
+    <button id="btn-tas">TAS</button>
+    <input type="file" id="tas-input" accept=".fm2" style="display:none">
     <span id="status">.NESファイルを選択してください</span>
     <select id="lang-select"><option value="auto">Auto</option><option value="ja">日本語</option><option value="en">English</option><option value="zh">中文</option></select>
     <a class="ext-link" href="https://x.com/GOROman" target="_blank" rel="noopener" title="X (@GOROman)">𝕏</a>
@@ -825,10 +831,10 @@ PRGとCHRを別のカセットから組み合わせた「ニコイチカセッ�
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784763807';</script>
-<script src="i18n.js?v=1784763807"></script>
-<script src="smb-ram.js?v=1784763807"></script>
-<script src="nes.js?v=1784763807"></script>
-<script src="main.js?v=1784763807"></script>
+<script>window.NES_VER='1784764095';</script>
+<script src="i18n.js?v=1784764095"></script>
+<script src="smb-ram.js?v=1784764095"></script>
+<script src="nes.js?v=1784764095"></script>
+<script src="main.js?v=1784764095"></script>
 </body>
 </html>
