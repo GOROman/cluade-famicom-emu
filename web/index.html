@@ -239,6 +239,27 @@
     box-shadow: 0 8px 32px rgba(0,0,0,0.7);
   }
   #check-panel.show { display: block; }
+  #check-progress { display: none; margin-bottom: 12px; }
+  #check-progress.show { display: block; }
+  #check-progress-label {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    color: #ddd;
+    margin-bottom: 4px;
+  }
+  #check-bar {
+    height: 16px;
+    background: #0d0d0d;
+    border: 1px solid #444;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #check-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: repeating-linear-gradient(90deg, #6fdc6f 0 8px, #4aa84a 8px 16px);
+    transition: width 0.06s linear;
+  }
   #check-text {
     font-family: ui-monospace, Menlo, monospace;
     font-size: 12px;
@@ -451,10 +472,14 @@
 </div>
 <div id="check-panel">
   <pre id="check-text"></pre>
+  <div id="check-progress">
+    <div id="check-progress-label"></div>
+    <div id="check-bar"><div id="check-bar-fill"></div></div>
+  </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784702811';</script>
-<script src="nes.js?v=1784702811"></script>
-<script src="main.js?v=1784702811"></script>
+<script>window.NES_VER='1784703073';</script>
+<script src="nes.js?v=1784703073"></script>
+<script src="main.js?v=1784703073"></script>
 </body>
 </html>
