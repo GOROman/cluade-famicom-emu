@@ -119,11 +119,11 @@ public:
         return 0;
     }
     void cpuWrite(uint16_t addr, uint8_t v) override {
-        if (addr >= 0x8000) bank_ = v & 3;
+        // no mask: oversize CNROM (e.g. Convoy no Nazo, 64KB CHR) uses more than 2 bits
+        if (addr >= 0x8000) bank_ = v % (int)(chr_.size() / 0x2000);
     }
     uint8_t ppuRead(uint16_t addr) override {
-        size_t a = bank_ * 0x2000 + (addr & 0x1FFF);
-        return chr_[a % chr_.size()];
+        return chr_[(size_t)bank_ * 0x2000 + (addr & 0x1FFF)];
     }
 private:
     int bank_ = 0;
