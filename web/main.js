@@ -260,6 +260,7 @@
     }
     romKey = file.name + ':' + buf.length;
     keepRomCopies(buf);
+    updateRamLabels(file.name);
     loadSram();
     resumeAudio(); // don't await: resume() only settles after a user gesture
     statusEl.textContent = file.name;
@@ -304,6 +305,7 @@
     }
     romKey = file.name + ':' + buf.length;
     keepRomCopies(buf);
+    updateRamLabels(file.name);
     loadSram();
     romLoaded = true;
     document.getElementById('cart-label').textContent = file.name.replace(/\.nes$/i, '');
@@ -739,6 +741,7 @@
   // WRAM dump: one span per byte, double-click to edit in place
   const wramSpans = [];
   const wramHotAt = new Float64Array(0x800);
+  const wramStreak = new Uint8Array(0x800);
   let wramPrimed = false;
   let editingSpan = null;
   for (let row = 0; row < 0x800; row += 16) {
@@ -756,6 +759,28 @@
     }
     dbgWram.appendChild(line);
   }
+  // SMB loaded → show SMBDIS work-RAM names on hover
+  function updateRamLabels(fileName) {
+    const isSmb = /mario/i.test(fileName)
+      || (lastRom && lastRom.prg && lastRom.prg.length === 0x8000 && crc32(lastRom.prg) === 0x5CF548D3);
+    const L = (isSmb && window.SMB_RAM_LABELS) ? window.SMB_RAM_LABELS : null;
+    for (let a = 0; a < 0x800; a++) {
+      wramSpans[a].title = '$' + a.toString(16).toUpperCase().padStart(4, '0');
+    }
+    if (!L) return;
+    const addrs = Object.keys(L).map(Number).sort((x, y) => x - y);
+    for (let i = 0; i < addrs.length; i++) {
+      const start = addrs[i];
+      const end = Math.min(i + 1 < addrs.length ? addrs[i + 1] : start + 16, 0x800);
+      const [name, comment] = L[start];
+      for (let a = start; a < end; a++) {
+        const off = a - start;
+        wramSpans[a].title = '$' + a.toString(16).toUpperCase().padStart(4, '0')
+          + '  ' + name + (off ? '+' + off : '') + (comment ? '\n' + comment : '');
+      }
+    }
+  }
+
   dbgWram.addEventListener('dblclick', (e) => {
     const span = e.target.closest('.ram-b');
     if (!span || editingSpan) return;
@@ -870,15 +895,27 @@
       const s = wramSpans[a];
       if (s === editingSpan) continue;   // don't clobber the byte being edited
       const h = hex2(ram[a]);
-      if (s.textContent !== h) {
-        s.textContent = h;
-        if (wramPrimed) {                // glow on change (skip initial fill)
+      const changed = s.textContent !== h;
+      if (changed) s.textContent = h;
+      if (!wramPrimed) continue;         // no classification on the initial fill
+      // consecutive-change streak: constantly-changing bytes (timers, RNG)
+      // are shown gray instead of glowing, so real events stand out
+      let st = wramStreak[a];
+      st = changed ? Math.min(st + 1, 20) : (st > 0 ? st - 1 : 0);
+      wramStreak[a] = st;
+      if (st >= 8) {
+        s.classList.add('busy');
+        s.classList.remove('hot');
+        wramHotAt[a] = 0;
+      } else {
+        s.classList.remove('busy');
+        if (changed) {
           s.classList.add('hot');
           wramHotAt[a] = now;
+        } else if (wramHotAt[a] && now - wramHotAt[a] > 700) {
+          s.classList.remove('hot');     // let the CSS transition fade it out
+          wramHotAt[a] = 0;
         }
-      } else if (wramHotAt[a] && now - wramHotAt[a] > 700) {
-        s.classList.remove('hot');       // let the CSS transition fade it out
-        wramHotAt[a] = 0;
       }
     }
     wramPrimed = true;
