@@ -307,19 +307,88 @@
     return null;
   }
 
-  function checkRegion(label, data, refCrc, refKB, addrBits) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const progressBox = document.getElementById('check-progress');
+  const progressLabel = document.getElementById('check-progress-label');
+  const progressFill = document.getElementById('check-bar-fill');
+  function setProgress(label, ratio) {
+    progressLabel.textContent = `${label} ${Math.round(ratio * 100)}%`;
+    progressFill.style.width = (ratio * 100) + '%';
+  }
+
+  // CRC32 computed over ~durationMs of wall-clock time, with retro progress
+  // display. Paced by elapsed time (not per-step sleeps) so background-tab
+  // timer throttling doesn't stretch the total duration.
+  async function crc32Slow(u8, label, durationMs) {
+    const t0 = performance.now();
+    let c = 0xFFFFFFFF;
+    let processed = 0;
+    while (processed < u8.length) {
+      const ratio = Math.min(1, (performance.now() - t0) / durationMs);
+      const target = Math.floor(u8.length * ratio);
+      for (; processed < target; processed++)
+        c = CRC_TABLE[(c ^ u8[processed]) & 0xFF] ^ (c >>> 8);
+      setProgress(label, processed / u8.length);
+      if (processed >= u8.length) break;
+      await sleep(40);
+    }
+    setProgress(label, 1);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  async function findBusMiswireSlow(data, refCrc, addrBits, label) {
+    const combos = [];
+    for (let i = 0; i < addrBits; i++)
+      for (let j = i + 1; j < addrBits; j++) combos.push({ kind: 'addr', i, j });
+    for (let i = 0; i < 8; i++)
+      for (let j = i + 1; j < 8; j++) combos.push({ kind: 'data', i, j });
+    const buf = new Uint8Array(data.length);
+    const DIAG_MS = 1500;
+    const t0 = performance.now();
+    let k = 0;
+    while (k < combos.length) {
+      const ratio = Math.min(1, (performance.now() - t0) / DIAG_MS);
+      const target = Math.max(k + 1, Math.floor(combos.length * ratio));
+      for (; k < target; k++) {
+        const { kind, i, j } = combos[k];
+        const mi = 1 << i, mj = 1 << j;
+        if (kind === 'addr') {
+          for (let a = 0; a < data.length; a++) {
+            let b2 = a & ~(mi | mj);
+            if (a & mi) b2 |= mj;
+            if (a & mj) b2 |= mi;
+            buf[b2] = data[a];
+          }
+        } else {
+          for (let a = 0; a < data.length; a++) {
+            const v = data[a];
+            let w = v & ~(mi | mj);
+            if (v & mi) w |= mj;
+            if (v & mj) w |= mi;
+            buf[a] = w;
+          }
+        }
+        if (crc32(buf) === refCrc) return combos[k];
+      }
+      setProgress(label, k / combos.length);
+      if (k < combos.length) await sleep(40);
+    }
+    return null;
+  }
+
+  async function checkRegionSlow(label, data, refCrc, refKB, addrBits, crcMs) {
     if (!data || data.length === 0) return `${label} ...なし\n`;
-    const crc = crc32(data);
     if (data.length !== refKB * 1024) {
       return `${label} CRC...<span class="ng">NG</span> (サイズ ${data.length / 1024}KB, 期待 ${refKB}KB)\n`;
     }
+    const crc = await crc32Slow(data, `${label} CRC 計算中...`, crcMs);
     if (crc === refCrc) return `${label} CRC...<span class="ok">OK</span> (${hex8(crc)})\n`;
     let out = `${label} CRC...<span class="ng">NG</span> (${hex8(crc)}, 期待 ${hex8(refCrc)})\n`;
     const stuck = findStuckAddrLines(data, addrBits);
     if (stuck.length) {
       out += `  → アドレス線 ${stuck.map((b) => 'A' + b).join(', ')} が固定/断線したダンプの疑い(内容が鏡像重複)\n`;
     }
-    const mis = findBusMiswire(data, refCrc, addrBits);
+    const mis = await findBusMiswireSlow(data, refCrc, addrBits, `${label} バス結線診断中...`);
     if (mis) {
       const n = mis.kind === 'addr' ? 'アドレス' : 'データ';
       out += `  → ${n}線 ${mis.kind === 'addr' ? 'A' : 'D'}${mis.i} ↔ ${mis.kind === 'addr' ? 'A' : 'D'}${mis.j} を入れ替えると一致: `
@@ -331,19 +400,27 @@
   }
 
   const checkPanel = document.getElementById('check-panel');
-  document.getElementById('check-close').addEventListener('click', () => checkPanel.classList.remove('show'));
-  document.getElementById('btn-xev').addEventListener('click', () => {
-    let html;
-    if (!lastRom) {
-      html = 'ROMが読み込まれていません。.NESファイルを開いてから実行してください。';
-    } else {
-      html = `${XEV_REF.name} ダンプ診断\n\n`;
-      html += checkRegion('PRGROM', lastRom.prg, XEV_REF.prgCrc, XEV_REF.prgKB, 15);
-      html += checkRegion('CGROM ', lastRom.chr, XEV_REF.chrCrc, XEV_REF.chrKB, 13);
-      html += '\n基準: 正規ダンプ PRG=EEB16683 / CHR=668B4EE6';
-    }
-    document.getElementById('check-text').innerHTML = html;
+  const checkText = document.getElementById('check-text');
+  let checking = false;
+  document.getElementById('check-close').addEventListener('click', () => {
+    if (!checking) checkPanel.classList.remove('show');
+  });
+  document.getElementById('btn-xev').addEventListener('click', async () => {
+    if (checking) return;
     checkPanel.classList.add('show');
+    if (!lastRom) {
+      checkText.innerHTML = 'ROMが読み込まれていません。.NESファイルを開いてから実行してください。';
+      return;
+    }
+    checking = true;
+    checkText.innerHTML = `${XEV_REF.name} ダンプ診断\n\n`;
+    progressBox.classList.add('show');
+    setProgress('準備中...', 0);
+    checkText.innerHTML += await checkRegionSlow('PRGROM', lastRom.prg, XEV_REF.prgCrc, XEV_REF.prgKB, 15, 2000);
+    checkText.innerHTML += await checkRegionSlow('CGROM ', lastRom.chr, XEV_REF.chrCrc, XEV_REF.chrKB, 13, 2000);
+    checkText.innerHTML += '\n基準: 正規ダンプ PRG=EEB16683 / CHR=668B4EE6';
+    progressBox.classList.remove('show');
+    checking = false;
   });
 
   // ------------------------------------------------------------------ cartridge connector (60pin)
