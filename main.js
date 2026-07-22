@@ -37,6 +37,7 @@
     setProbe: Module._nes_set_probe,
     probeBuffer: Module._nes_probe_buffer,
     probePos: Module._nes_probe_pos,
+    probeLevel: Module._nes_probe_level,
     sram: Module._nes_sram,
     sramSize: Module._nes_sram_size,
     hasBattery: Module._nes_has_battery,
@@ -957,6 +958,7 @@
     el.addEventListener('mouseenter', () => probeAttach(pin, el));
     el.addEventListener('mouseleave', () => probeDetach(pin));
   });
+  const stripChart = new Uint8Array(256).fill(30);
   function drawProbe() {
     if (!probeActive) return;
     const ptr = api.probeBuffer();
@@ -964,6 +966,13 @@
     const buf = Module.HEAPU8.subarray(ptr, ptr + 2048);
     const head = api.probePos();
     const W = probeCanvas.width, H = probeCanvas.height;
+    // slow clock: the 2048-cycle window spans seconds — switch to a
+    // wall-time strip chart sampled every animation frame instead
+    const slowMode = clockHz < 60000;
+    if (slowMode) {
+      stripChart.copyWithin(0, 1);
+      stripChart[255] = api.probeLevel();
+    }
     probeCtx.fillStyle = '#0a0f05';
     probeCtx.fillRect(0, 0, W, H);
     // graticule
@@ -973,20 +982,29 @@
     for (let gx = 0; gx <= W; gx += 32) { probeCtx.moveTo(gx + 0.5, 0); probeCtx.lineTo(gx + 0.5, H); }
     for (let gy = 0; gy <= H; gy += 20) { probeCtx.moveTo(0, gy + 0.5); probeCtx.lineTo(W, gy + 0.5); }
     probeCtx.stroke();
-    // simple rising-edge trigger for a stable trace
-    const at = (i) => buf[(head + i) & 2047];
-    let trig = 0;
-    for (let i = 1; i < 1024; i++) {
-      if (at(i - 1) < 128 && at(i) >= 128) { trig = i; break; }
-    }
     probeCtx.strokeStyle = '#7CFC66';
     probeCtx.lineWidth = 0.8;
     probeCtx.beginPath();
-    const N = 1024;
-    for (let x = 0; x < W; x++) {
-      const i = trig + ((x * N / W) | 0);
-      const y = H - 4 - (at(i) / 255) * (H - 8);
-      if (x === 0) probeCtx.moveTo(x, y); else probeCtx.lineTo(x, y);
+    if (slowMode) {
+      // real-time scrolling trace (right edge = now)
+      for (let x = 0; x < W; x++) {
+        const v = stripChart[(x * 256 / W) | 0];
+        const y = H - 4 - (v / 255) * (H - 8);
+        if (x === 0) probeCtx.moveTo(x, y); else probeCtx.lineTo(x, y);
+      }
+    } else {
+      // simple rising-edge trigger for a stable trace
+      const at = (i) => buf[(head + i) & 2047];
+      let trig = 0;
+      for (let i = 1; i < 1024; i++) {
+        if (at(i - 1) < 128 && at(i) >= 128) { trig = i; break; }
+      }
+      const N = 1024;
+      for (let x = 0; x < W; x++) {
+        const i = trig + ((x * N / W) | 0);
+        const y = H - 4 - (at(i) / 255) * (H - 8);
+        if (x === 0) probeCtx.moveTo(x, y); else probeCtx.lineTo(x, y);
+      }
     }
     probeCtx.stroke();
   }
