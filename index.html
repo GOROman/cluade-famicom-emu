@@ -83,6 +83,16 @@
     background: #ff4b3e;
     box-shadow: 0 0 6px #ff4b3e;
   }
+  #lang-select {
+    background: var(--fc-red);
+    color: var(--fc-cream);
+    border: none;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+  }
   #status {
     font-size: 12px;
     color: var(--fc-red-dark);
@@ -101,8 +111,11 @@
     padding: 4px 8px 2px;
     overflow-x: auto;
     flex-shrink: 0;
+    gap: 14px;
+    align-items: flex-start;
   }
-  body.bus-on #cartbus { display: block; }
+  body.bus-on #cartbus { display: flex; }
+  #bus-left { flex-shrink: 0; }
   .bus-row { display: flex; align-items: center; gap: 6px; margin: 1px 0; }
   .bus-row .rowlabel {
     width: 56px;
@@ -183,20 +196,17 @@
     animation: pinblink 0.4s steps(2) infinite;
   }
   @keyframes pinblink { 50% { opacity: 0.4; } }
-  /* cartridge front view (visible in 端子 mode, replaces right debug panel) */
+  /* cartridge front view: lives on the right side of the bus panel */
   #cart-view {
-    display: none;
-    width: min(280px, 40vw);
-    max-height: 100%;
+    width: 300px;
     flex-shrink: 0;
-    overflow: auto;
-    background: #161616;
-    padding: 10px;
-    align-self: stretch;
     text-align: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    align-items: flex-start;
   }
-  body.bus-on #cart-view { display: block; }
-  body.bus-on #debug { display: none !important; }
+  #cart-view h3 { width: 100%; }
   #cart-view h3 {
     color: #ddd;
     font-size: 12px;
@@ -205,8 +215,18 @@
   }
   #cart-stage {
     position: relative;
-    height: 210px;
+    width: 210px;
+    height: 130px;
     overflow: hidden;
+    flex-shrink: 0;
+  }
+  #cart-inner {
+    position: absolute;
+    left: 0; bottom: 0;
+    width: 280px;
+    height: 175px;
+    transform: scale(0.75);
+    transform-origin: 0 100%;
   }
   #cart-body {
     position: absolute;
@@ -249,16 +269,16 @@
   }
   #cart-tilt {
     width: 100%;
-    margin-top: 6px;
+    margin-top: 2px;
     accent-color: var(--fc-red);
     cursor: pointer;
   }
   #cart-controls {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     justify-content: center;
     align-items: center;
-    margin-top: 8px;
+    margin-top: 2px;
     flex-wrap: wrap;
   }
   #cart-controls button {
@@ -266,8 +286,8 @@
     color: var(--fc-cream);
     border: none;
     border-radius: 5px;
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 4px 8px;
+    font-size: 11px;
     font-weight: bold;
     cursor: pointer;
     box-shadow: 0 2px 0 var(--fc-red-dark);
@@ -279,7 +299,7 @@
     font-size: 13px;
     min-width: 44px;
   }
-  #cart-note { font-size: 10px; color: #85755a; margin-top: 6px; text-align: left; }
+  #cart-note { font-size: 9px; color: #85755a; margin-top: 2px; text-align: left; width: 100%; }
   .blow-puff {
     position: absolute;
     bottom: 30px;
@@ -562,7 +582,7 @@
 <body class="bus-on">
 <div id="app">
   <div id="toolbar">
-    <label>ROMを開く<input type="file" id="rom-input" accept=".nes,application/octet-stream"></label>
+    <label><span id="lbl-open">ROMを開く</span><input type="file" id="rom-input" accept=".nes,application/octet-stream"></label>
     <button id="btn-power" class="power-off">電源</button>
     <button id="btn-reset">リセット</button>
     <button id="btn-swap">カセット入替</button>
@@ -571,39 +591,21 @@
     <button id="btn-bus">端子</button>
     <button id="btn-xev" hidden>XEVIOUS判定</button>
     <span id="status">.NESファイルを選択してください</span>
+    <select id="lang-select"><option value="ja">日本語</option><option value="en">English</option><option value="zh">中文</option></select>
   </div>
   <div id="cartbus">
-    <div class="bus-row"><span class="rowlabel">裏 31-60</span><div id="bus-back-func" class="pins func"></div></div>
-    <div class="bus-row"><span class="rowlabel"></span><div id="bus-back" class="pins"></div></div>
-    <div class="bus-row"><span class="rowlabel"></span><div id="bus-housing"></div></div>
-    <div class="bus-row"><span class="rowlabel"></span><div id="bus-front" class="pins"></div></div>
-    <div class="bus-row"><span class="rowlabel">表 1-30</span><div id="bus-front-func" class="pins func"></div></div>
-    <div id="bus-hint">クリックで接点の接触不良をトグル(金=導通 / 黒=接触不良)。ホバーでピンの解説。リセットで復旧確認</div>
-  </div>
-  <div id="screen-wrap">
-    <div id="debug-left">
-      <h3 id="chr-title">CGROM (CHR) — pal 0 [click]</h3>
-      <canvas id="chr-canvas" width="128" height="256" title="クリックでパレット切替"></canvas>
-    </div>
-    <canvas id="screen" width="256" height="240"></canvas>
-    <div id="debug">
-      <h3>APU 波形</h3>
-      <div id="dbg-waves">
-        <div class="wave-row"><span>SQ1</span><canvas class="wave" width="280" height="18"></canvas></div>
-        <div class="wave-row"><span>SQ2</span><canvas class="wave" width="280" height="18"></canvas></div>
-        <div class="wave-row"><span>TRI</span><canvas class="wave" width="280" height="18"></canvas></div>
-        <div class="wave-row"><span>NOI</span><canvas class="wave" width="280" height="18"></canvas></div>
-        <div class="wave-row"><span>DMC</span><canvas class="wave" width="280" height="18"></canvas></div>
-        <div class="wave-row"><span>MIX</span><canvas class="wave" width="280" height="18"></canvas></div>
-      </div>
-      <h3>APU $4000-$4017</h3>
-      <div id="dbg-apu"></div>
-      <h3>WRAM $0000-$07FF (ダブルクリックで編集)</h3>
-      <div id="dbg-wram"></div>
+    <div id="bus-left">
+      <div class="bus-row"><span class="rowlabel" id="lbl-bus-back">裏 31-60</span><div id="bus-back-func" class="pins func"></div></div>
+      <div class="bus-row"><span class="rowlabel"></span><div id="bus-back" class="pins"></div></div>
+      <div class="bus-row"><span class="rowlabel"></span><div id="bus-housing"></div></div>
+      <div class="bus-row"><span class="rowlabel"></span><div id="bus-front" class="pins"></div></div>
+      <div class="bus-row"><span class="rowlabel" id="lbl-bus-front">表 1-30</span><div id="bus-front-func" class="pins func"></div></div>
+      <div id="bus-hint">クリックで接点の接触不良をトグル(金=導通 / 黒=接触不良)。ホバーでピンの解説。リセットで復旧確認</div>
     </div>
     <div id="cart-view">
-      <h3>カートリッジ挿入状態</h3>
+      <h3 id="cart-title-h3">カートリッジ挿入状態</h3>
       <div id="cart-stage">
+        <div id="cart-inner">
         <div id="cart-slot"></div>
         <div id="cart-body">
           <svg id="cart-svg" viewBox="0 0 190 150" width="190" height="150" xmlns="http://www.w3.org/2000/svg">
@@ -643,6 +645,7 @@
           <div id="cart-label">CASSETTE</div>
           <div id="cart-edge"></div>
         </div>
+        </div>
       </div>
       <input type="range" id="cart-tilt" min="-6" max="6" step="0.1" value="0">
       <div id="cart-controls">
@@ -653,6 +656,28 @@
         <button id="cart-blow">息(フーフー)💨</button>
       </div>
       <div id="cart-note">傾けると端子の接触が浮いた側から不安定になります(点滅=接触不良気味、黒=断線)。「挿し直す」で全ピン復旧。</div>
+    </div>
+  </div>
+  <div id="screen-wrap">
+    <div id="debug-left">
+      <h3 id="chr-title">CGROM (CHR) — pal 0 [click]</h3>
+      <canvas id="chr-canvas" width="128" height="256" title="クリックでパレット切替"></canvas>
+    </div>
+    <canvas id="screen" width="256" height="240"></canvas>
+    <div id="debug">
+      <h3 id="h-waves">APU 波形</h3>
+      <div id="dbg-waves">
+        <div class="wave-row"><span>SQ1</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>SQ2</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>TRI</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>NOI</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>DMC</span><canvas class="wave" width="280" height="18"></canvas></div>
+        <div class="wave-row"><span>MIX</span><canvas class="wave" width="280" height="18"></canvas></div>
+      </div>
+      <h3 id="h-apuregs">APU $4000-$4017</h3>
+      <div id="dbg-apu"></div>
+      <h3 id="h-wram">WRAM $0000-$07FF (ダブルクリックで編集)</h3>
+      <div id="dbg-wram"></div>
     </div>
   </div>
   <div id="pad">
@@ -667,12 +692,12 @@
   </div>
 </div>
 <div id="swap-panel">
-  <h3>カセット入替</h3>
+  <h3 id="swap-title">カセット入替</h3>
   <div id="swap-current">PRG: - / CHR: -</div>
   <div class="swap-actions">
-    <label class="swap-btn">まるごと入替<input type="file" id="swap-input" accept=".nes,application/octet-stream"></label>
-    <label class="swap-btn">PRGROMだけ入替<input type="file" id="swap-prg-input" accept=".nes,application/octet-stream"></label>
-    <label class="swap-btn">CHRROMだけ入替<input type="file" id="swap-chr-input" accept=".nes,application/octet-stream"></label>
+    <label class="swap-btn"><span id="lbl-swap-whole">まるごと入替</span><input type="file" id="swap-input" accept=".nes,application/octet-stream"></label>
+    <label class="swap-btn"><span id="lbl-swap-prg">PRGROMだけ入替</span><input type="file" id="swap-prg-input" accept=".nes,application/octet-stream"></label>
+    <label class="swap-btn"><span id="lbl-swap-chr">CHRROMだけ入替</span><input type="file" id="swap-chr-input" accept=".nes,application/octet-stream"></label>
   </div>
   <div id="swap-note">電源を入れたまま差し替えます(リセットは掛かりません → リセットで起動、RAM保持)。
 PRGとCHRを別のカセットから組み合わせた「ニコイチカセット」も作れます。マッパー/ミラーリングはPRG側のヘッダに従います。</div>
@@ -686,9 +711,10 @@ PRGとCHRを別のカセットから組み合わせた「ニコイチカセッ�
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784726021';</script>
-<script src="smb-ram.js?v=1784726021"></script>
-<script src="nes.js?v=1784726021"></script>
-<script src="main.js?v=1784726021"></script>
+<script>window.NES_VER='1784761070';</script>
+<script src="i18n.js?v=1784761070"></script>
+<script src="smb-ram.js?v=1784761070"></script>
+<script src="nes.js?v=1784761070"></script>
+<script src="main.js?v=1784761070"></script>
 </body>
 </html>
