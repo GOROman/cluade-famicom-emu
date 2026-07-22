@@ -2,6 +2,39 @@
 
 namespace nes {
 
+// Famicom 60-pin cartridge connector: recompute signal masks from pin states.
+// Pinout (nesdev wiki): front 1-30 = GND, CPU A11..A0, R/W, /IRQ, GND, PPU /RD,
+// CIRAM A10, PPU A6..A0, PPU D0..D3, +5V / back 31-60 = +5V, M2, CPU A12-A14,
+// CPU D7..D0, /ROMSEL, sound in/out, PPU /WR, CIRAM /CE, PPU /A13, PPU A7..A13,
+// PPU D7..D4.
+void NES::updatePins() {
+    powerOk = pinOk[1] && pinOk[16] && pinOk[30] && pinOk[31];
+    // CPU address: pins 2..13 = A11..A0, 33..35 = A12..A14
+    prgAddrAnd = 0;
+    for (int i = 0; i < 12; i++) if (pinOk[13 - i]) prgAddrAnd |= 1 << i;      // A0-A11
+    for (int i = 0; i < 3; i++)  if (pinOk[33 + i]) prgAddrAnd |= 1 << (12 + i); // A12-A14
+    // CPU data: pins 43..36 = D0..D7
+    prgDataAnd = 0;
+    for (int i = 0; i < 8; i++) if (pinOk[43 - i]) prgDataAnd |= 1 << i;
+    rwOk = pinOk[14];
+    irqOk = pinOk[15];
+    m2Ok = pinOk[32];
+    romselOk = pinOk[44];
+    soundOk = pinOk[45] && pinOk[46];
+    // PPU address: pins 25..19 = A0..A6, 50..56 = A7..A13
+    chrAddrAnd = 0;
+    for (int i = 0; i < 7; i++) if (pinOk[25 - i]) chrAddrAnd |= 1 << i;       // A0-A6
+    for (int i = 0; i < 7; i++) if (pinOk[50 + i]) chrAddrAnd |= 1 << (7 + i); // A7-A13
+    // PPU data: pins 26..29 = D0..D3, 60..57 = D4..D7
+    chrDataAnd = 0;
+    for (int i = 0; i < 4; i++) if (pinOk[26 + i]) chrDataAnd |= 1 << i;
+    for (int i = 0; i < 4; i++) if (pinOk[60 - i]) chrDataAnd |= 1 << (4 + i);
+    ppuRdOk = pinOk[17];
+    ppuWrOk = pinOk[47];
+    ciramA10Ok = pinOk[18];
+    ciramCeOk = pinOk[48] && pinOk[49];   // most carts drive CIRAM /CE from PPU /A13
+}
+
 bool NES::loadRom(const uint8_t* data, size_t size) {
     mapper = nes::loadRom(data, size);
     if (!mapper) return false;
@@ -23,7 +56,13 @@ uint8_t NES::cpuRead(uint16_t addr) {
     if (addr == 0x4016) return pad[0].read();
     if (addr == 0x4017) return pad[1].read();
     if (addr < 0x4020) return 0;
-    return mapper ? mapper->cpuRead(addr) : 0;
+    if (!mapper) return 0;
+    // cartridge access through the (possibly faulty) connector
+    if (!powerOk || !m2Ok) return cartOpenBus(addr);
+    if (addr >= 0x8000 && !romselOk) return cartOpenBus(addr);
+    uint16_t maskedAddr = (addr & 0x8000) | (addr & prgAddrAnd);
+    uint8_t v = mapper->cpuRead(maskedAddr);
+    return (v & prgDataAnd) | (cartOpenBus(addr) & ~prgDataAnd);
 }
 
 void NES::cpuWrite(uint16_t addr, uint8_t v) {
@@ -41,14 +80,18 @@ void NES::cpuWrite(uint16_t addr, uint8_t v) {
     if (addr >= 0x4000 && addr <= 0x4017) apuRegShadow[addr - 0x4000] = v;
     if (addr == 0x4016) { pad[0].writeStrobe(v); pad[1].writeStrobe(v); return; }
     if (addr < 0x4020) { apu.writeReg(addr, v); return; }
-    if (mapper) mapper->cpuWrite(addr, v);
+    if (!mapper) return;
+    if (!powerOk || !m2Ok || !rwOk) return;
+    if (addr >= 0x8000 && !romselOk) return;
+    uint16_t maskedAddr = (addr & 0x8000) | (addr & prgAddrAnd);
+    mapper->cpuWrite(maskedAddr, (v & prgDataAnd) | (cartOpenBus(addr) & ~prgDataAnd));
 }
 
 void NES::runFrame() {
     ppu.frameReady = false;
     while (!ppu.frameReady) {
         // IRQ line: APU frame/DMC + mapper (MMC3)
-        cpu.irq(apu.irqPending() || (mapper && mapper->irqPending()));
+        cpu.irq(apu.irqPending() || (mapper && irqOk && mapper->irqPending()));
         int cycles = cpu.step();
         for (int i = 0; i < cycles; i++) {
             apu.step();
@@ -88,7 +131,27 @@ API int nes_load_rom(int size) {
 
 API void nes_reset() { if (g_nes && g_nes->mapper) g_nes->reset(); }
 
-API void nes_frame() { if (g_nes && g_nes->mapper) g_nes->runFrame(); }
+API void nes_frame() {
+    if (!g_nes || !g_nes->mapper) return;
+    g_nes->runFrame();
+    // Famicom audio loops through the cartridge (pins 45/46) — a bad contact mutes it
+    if (!g_nes->soundOk)
+        for (int i = 0; i < g_nes->apu.sampleCount; i++) g_nes->apu.sampleBuf[i] = 0;
+}
+
+API void nes_set_pin(int pin, int on) {
+    if (!g_nes || pin < 1 || pin > 60) return;
+    g_nes->pinOk[pin] = on != 0;
+    g_nes->updatePins();
+}
+API int nes_get_pin(int pin) {
+    return (g_nes && pin >= 1 && pin <= 60) ? (g_nes->pinOk[pin] ? 1 : 0) : 1;
+}
+API void nes_reset_pins() {
+    if (!g_nes) return;
+    for (int i = 0; i < 61; i++) g_nes->pinOk[i] = true;
+    g_nes->updatePins();
+}
 
 API uint32_t* nes_framebuffer() { return g_nes ? g_nes->ppu.framebuffer : nullptr; }
 

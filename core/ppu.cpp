@@ -24,23 +24,33 @@ void PPU::reset() {
 }
 
 uint16_t PPU::ntMirror(uint16_t addr) {
-    addr &= 0x0FFF;
-    int table = addr / 0x400;
+    // CIRAM A10 is derived by the cart from PPU A10/A11 — apply connector faults
+    // to the table-select bits only (CIRAM A0-A9 run directly on the motherboard)
+    int table = ((addr & nes_.chrAddrAnd) & 0x0FFF) / 0x400;
     int off = addr & 0x3FF;
+    uint16_t r;
     switch (nes_.mapper->mirroring()) {
-    case Mirroring::Vertical:   return ((table & 1) * 0x400) + off;
-    case Mirroring::Horizontal: return ((table >> 1) * 0x400) + off;
-    case Mirroring::SingleLow:  return off;
-    case Mirroring::SingleHigh: return 0x400 + off;
-    case Mirroring::FourScreen: return ((table & 1) * 0x400) + off; // 2KB fallback
+    case Mirroring::Vertical:   r = ((table & 1) * 0x400) + off; break;
+    case Mirroring::Horizontal: r = ((table >> 1) * 0x400) + off; break;
+    case Mirroring::SingleLow:  r = off; break;
+    case Mirroring::SingleHigh: r = 0x400 + off; break;
+    default:                    r = ((table & 1) * 0x400) + off; break; // 4-screen fallback
     }
-    return off;
+    if (!nes_.ciramA10Ok) r &= ~0x400;   // CIRAM A10 pin broken: bit floats low
+    return r;
 }
 
 uint8_t PPU::vramRead(uint16_t addr) {
     addr &= 0x3FFF;
-    if (addr < 0x2000) return nes_.mapper->ppuRead(addr);
-    if (addr < 0x3F00) return vram_[ntMirror(addr)];
+    if (addr < 0x2000) {
+        if (!nes_.powerOk || !nes_.ppuRdOk) return addr & 0xFF;   // bus floats
+        uint8_t v = nes_.mapper->ppuRead(addr & nes_.chrAddrAnd & 0x1FFF);
+        return (v & nes_.chrDataAnd) | ((addr & 0xFF) & ~nes_.chrDataAnd);
+    }
+    if (addr < 0x3F00) {
+        if (!nes_.ciramCeOk) return addr & 0xFF;   // nametable RAM not selected
+        return vram_[ntMirror(addr)];
+    }
     addr &= 0x1F;
     if (addr >= 0x10 && (addr & 3) == 0) addr &= 0x0F;
     return palette_[addr];
@@ -48,8 +58,17 @@ uint8_t PPU::vramRead(uint16_t addr) {
 
 void PPU::vramWrite(uint16_t addr, uint8_t v) {
     addr &= 0x3FFF;
-    if (addr < 0x2000) { nes_.mapper->ppuWrite(addr, v); return; }
-    if (addr < 0x3F00) { vram_[ntMirror(addr)] = v; return; }
+    if (addr < 0x2000) {
+        if (!nes_.powerOk || !nes_.ppuWrOk) return;
+        nes_.mapper->ppuWrite(addr & nes_.chrAddrAnd & 0x1FFF,
+                              (v & nes_.chrDataAnd) | ((addr & 0xFF) & ~nes_.chrDataAnd));
+        return;
+    }
+    if (addr < 0x3F00) {
+        if (!nes_.ciramCeOk) return;
+        vram_[ntMirror(addr)] = v;
+        return;
+    }
     addr &= 0x1F;
     if (addr >= 0x10 && (addr & 3) == 0) addr &= 0x0F;
     palette_[addr] = v;

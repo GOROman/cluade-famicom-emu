@@ -73,6 +73,49 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* cartridge connector (60-pin) fault panel */
+  #cartbus {
+    display: none;
+    background: #211d18;
+    border-bottom: 4px solid var(--fc-red);
+    padding: 6px 8px 4px;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  body.bus-on #cartbus { display: block; }
+  .bus-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .bus-row .rowlabel {
+    width: 56px;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #b7a374;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .pins { display: flex; gap: 2px; }
+  .pin {
+    width: 22px;
+    height: 24px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(#E5C877, #B8923C);
+    color: #4a3510;
+    font-size: 8px;
+    line-height: 1.1;
+    font-family: ui-monospace, Menlo, monospace;
+    border-radius: 2px 2px 0 0;
+    cursor: pointer;
+    text-align: center;
+  }
+  .pin b { font-size: 9px; }
+  .pin.off {
+    background: #151312;
+    color: #E05555;
+    box-shadow: inset 0 0 0 1px #E05555;
+  }
+  #bus-hint { font-size: 10px; color: #85755a; margin-top: 2px; }
   #screen-wrap {
     flex: 1;
     display: flex;
@@ -204,7 +247,13 @@
     <button id="btn-reset">リセット</button>
     <button id="btn-mute">🔊</button>
     <button id="btn-debug">DEBUG</button>
+    <button id="btn-bus">端子</button>
     <span id="status">.NESファイルを選択してください</span>
+  </div>
+  <div id="cartbus">
+    <div class="bus-row"><span class="rowlabel">裏 31-60</span><div id="bus-back" class="pins"></div></div>
+    <div class="bus-row"><span class="rowlabel">表 1-30</span><div id="bus-front" class="pins"></div></div>
+    <div id="bus-hint">クリックで接点の接触不良をトグル(金=導通 / 黒=接触不良)。リセットで復旧確認</div>
   </div>
   <div id="screen-wrap">
     <div id="debug-left">

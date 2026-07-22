@@ -243,7 +243,9 @@ private:
 // ---------------------------------------------------------------- NES
 class NES {
 public:
-    NES() : cpu(*this), ppu(*this), apu(*this) {}
+    NES() : cpu(*this), ppu(*this), apu(*this) {
+        for (int i = 0; i < 61; i++) pinOk[i] = true;
+    }
 
     bool loadRom(const uint8_t* data, size_t size);
     void reset();
@@ -259,6 +261,19 @@ public:
     std::unique_ptr<Mapper> mapper;
     uint8_t ram[0x800] = {};
     uint8_t apuRegShadow[0x18] = {};   // last value written to $4000-$4017 (debug view)
+
+    // ---- cartridge connector fault emulation (60-pin, 1-based) ----
+    bool pinOk[61];
+    // derived signal masks/flags, recomputed by updatePins()
+    uint16_t prgAddrAnd = 0x7FFF;   // CPU A0-A14 to cart
+    uint8_t  prgDataAnd = 0xFF;     // CPU D0-D7
+    uint16_t chrAddrAnd = 0x3FFF;   // PPU A0-A13 to cart
+    uint8_t  chrDataAnd = 0xFF;     // PPU D0-D7
+    bool romselOk = true, m2Ok = true, rwOk = true, irqOk = true;
+    bool ppuRdOk = true, ppuWrOk = true, ciramCeOk = true, ciramA10Ok = true;
+    bool soundOk = true, powerOk = true;
+    void updatePins();
+    uint8_t cartOpenBus(uint16_t addr) const { return addr >> 8; }
 };
 
 extern const uint32_t NES_PALETTE[64];
