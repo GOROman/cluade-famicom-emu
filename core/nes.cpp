@@ -39,15 +39,20 @@ void NES::updatePins() {
 bool NES::loadRom(const uint8_t* data, size_t size) {
     mapper = nes::loadRom(data, size);
     if (!mapper) return false;
-    reset();
+    powerOn();
     return true;
 }
 
 void NES::reset() {
-    memset(ram, 0, sizeof(ram));
+    // like the real RESET button: work RAM survives
     ppu.reset();
     apu.reset();
     cpu.reset();
+}
+
+void NES::powerOn() {
+    memset(ram, 0, sizeof(ram));
+    reset();
 }
 
 uint8_t NES::cpuRead(uint16_t addr) {
@@ -131,6 +136,17 @@ API int nes_load_rom(int size) {
 }
 
 API void nes_reset() { if (g_nes && g_nes->mapper) g_nes->reset(); }
+API void nes_power_on() { if (g_nes && g_nes->mapper) g_nes->powerOn(); }
+
+// swap the cartridge WITHOUT any reset: CPU keeps running, RAM survives.
+// Boot the new cart with the RESET button afterwards — bug techniques welcome.
+API int nes_swap_rom(int size) {
+    if (!g_nes || size <= 0 || (size_t)size > sizeof(g_romBuf)) return 0;
+    auto m = nes::loadRom(g_romBuf, (size_t)size);
+    if (!m) return 0;
+    g_nes->mapper = std::move(m);
+    return 1;
+}
 
 API void nes_frame() {
     if (!g_nes || !g_nes->mapper) return;

@@ -250,7 +250,8 @@ public:
     }
 
     bool loadRom(const uint8_t* data, size_t size);
-    void reset();
+    void reset();      // RESET button: chips reset, RAM preserved (bug techniques!)
+    void powerOn();    // power cycle: RAM cleared + reset
     void runFrame();
 
     uint8_t cpuRead(uint16_t addr);
