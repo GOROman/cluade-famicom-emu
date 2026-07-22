@@ -299,6 +299,59 @@
     50% { transform: translate(2px, 1px) rotate(1deg); }
     75% { transform: translate(-1px, 2px); }
   }
+  /* cartridge swap dialog */
+  #swap-panel {
+    display: none;
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(480px, 92vw);
+    background: #1b1b1b;
+    border: 3px solid var(--fc-red);
+    border-radius: 8px;
+    padding: 16px;
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+  }
+  #swap-panel.show { display: block; }
+  #swap-panel h3 { color: #ddd; font-size: 14px; margin-bottom: 8px; }
+  #swap-current {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    color: #9fdf9f;
+    margin-bottom: 12px;
+    word-break: break-all;
+  }
+  .swap-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .swap-btn {
+    background: var(--fc-red);
+    color: var(--fc-cream);
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+    text-align: center;
+    box-shadow: 0 2px 0 var(--fc-red-dark);
+  }
+  .swap-btn:active { transform: translateY(2px); box-shadow: none; }
+  .swap-btn input[type=file] { display: none; }
+  #swap-note {
+    font-size: 11px;
+    color: #85755a;
+    line-height: 1.5;
+    margin-bottom: 12px;
+    white-space: pre-wrap;
+  }
+  #swap-close {
+    background: #444;
+    color: #eee;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 16px;
+    font-weight: bold;
+    cursor: pointer;
+  }
   /* dump check result panel */
   #check-panel {
     display: none;
@@ -512,7 +565,7 @@
     <label>ROMを開く<input type="file" id="rom-input" accept=".nes,application/octet-stream"></label>
     <button id="btn-power" class="power-off">電源</button>
     <button id="btn-reset">リセット</button>
-    <label>カセット入替<input type="file" id="swap-input" accept=".nes,application/octet-stream"></label>
+    <button id="btn-swap">カセット入替</button>
     <button id="btn-mute">🔊</button>
     <button id="btn-debug">DEBUG</button>
     <button id="btn-bus">端子</button>
@@ -613,6 +666,18 @@
     <div class="pbtn" id="btn-start" data-bit="8">START</div>
   </div>
 </div>
+<div id="swap-panel">
+  <h3>カセット入替</h3>
+  <div id="swap-current">PRG: - / CHR: -</div>
+  <div class="swap-actions">
+    <label class="swap-btn">まるごと入替<input type="file" id="swap-input" accept=".nes,application/octet-stream"></label>
+    <label class="swap-btn">PRGROMだけ入替<input type="file" id="swap-prg-input" accept=".nes,application/octet-stream"></label>
+    <label class="swap-btn">CHRROMだけ入替<input type="file" id="swap-chr-input" accept=".nes,application/octet-stream"></label>
+  </div>
+  <div id="swap-note">電源を入れたまま差し替えます(リセットは掛かりません → リセットで起動、RAM保持)。
+PRGとCHRを別のカセットから組み合わせた「ニコイチカセット」も作れます。マッパー/ミラーリングはPRG側のヘッダに従います。</div>
+  <button id="swap-close">閉じる</button>
+</div>
 <div id="check-panel">
   <pre id="check-text"></pre>
   <div id="check-progress">
@@ -621,9 +686,9 @@
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784724207';</script>
-<script src="smb-ram.js?v=1784724207"></script>
-<script src="nes.js?v=1784724207"></script>
-<script src="main.js?v=1784724207"></script>
+<script>window.NES_VER='1784726021';</script>
+<script src="smb-ram.js?v=1784726021"></script>
+<script src="nes.js?v=1784726021"></script>
+<script src="main.js?v=1784726021"></script>
 </body>
 </html>
