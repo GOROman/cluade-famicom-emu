@@ -738,6 +738,8 @@
   const dbgWram = document.getElementById('dbg-wram');
   // WRAM dump: one span per byte, double-click to edit in place
   const wramSpans = [];
+  const wramHotAt = new Float64Array(0x800);
+  let wramPrimed = false;
   let editingSpan = null;
   for (let row = 0; row < 0x800; row += 16) {
     const line = document.createElement('div');
@@ -868,8 +870,18 @@
       const s = wramSpans[a];
       if (s === editingSpan) continue;   // don't clobber the byte being edited
       const h = hex2(ram[a]);
-      if (s.textContent !== h) s.textContent = h;
+      if (s.textContent !== h) {
+        s.textContent = h;
+        if (wramPrimed) {                // glow on change (skip initial fill)
+          s.classList.add('hot');
+          wramHotAt[a] = now;
+        }
+      } else if (wramHotAt[a] && now - wramHotAt[a] > 700) {
+        s.classList.remove('hot');       // let the CSS transition fade it out
+        wramHotAt[a] = 0;
+      }
     }
+    wramPrimed = true;
 
     const chrPtr = api.renderChr(chrPal);
     if (chrPtr) {
