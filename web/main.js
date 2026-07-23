@@ -293,8 +293,18 @@
     };
   }
 
-  function loadRomBuffer(buf, name) {
+  document.getElementById('rom-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
     saveSram();
+    let buf;
+    try {
+      buf = new Uint8Array(await file.arrayBuffer());
+    } catch (err) {
+      console.error('[nes] rom read failed:', err);
+      statusEl.textContent = t('readFail');
+      return;
+    }
     const ptr = api.romBuffer();
     if (buf.length > 4 * 1024 * 1024) {
       statusEl.textContent = t('tooBig');
@@ -313,47 +323,16 @@
       statusEl.textContent = t('unsupported') + info;
       return;
     }
-    romKey = name + ':' + buf.length;
+    romKey = file.name + ':' + buf.length;
     keepRomCopies(buf);
-    setCartSources(name, buf);
-    updateRamLabels(name);
+    setCartSources(file.name, buf);
+    updateRamLabels(file.name);
     loadSram();
     resumeAudio(); // don't await: resume() only settles after a user gesture
-    statusEl.textContent = name;
+    statusEl.textContent = file.name;
     romLoaded = true;
     setPower(true);   // 電源ON(パワーオンリセット込み)
-  }
-
-  document.getElementById('rom-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    let buf;
-    try {
-      buf = new Uint8Array(await file.arrayBuffer());
-    } catch (err) {
-      console.error('[nes] rom read failed:', err);
-      statusEl.textContent = t('readFail');
-      return;
-    }
-    loadRomBuffer(buf, file.name);
   });
-
-  // ?rom=<URL> で起動時に自動ロード (相対パス or CORS 許可された URL)
-  const bootRomUrl = new URLSearchParams(location.search).get('rom');
-  if (bootRomUrl) {
-    (async () => {
-      try {
-        const res = await fetch(bootRomUrl);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const buf = new Uint8Array(await res.arrayBuffer());
-        const name = decodeURIComponent((new URL(bootRomUrl, location.href)).pathname.split('/').pop()) || 'rom.nes';
-        loadRomBuffer(buf, name);
-      } catch (err) {
-        console.error('[nes] ?rom= load failed:', err);
-        statusEl.textContent = 'ROM fetch failed: ' + bootRomUrl;
-      }
-    })();
-  }
 
   // リセットはレベル信号: 押している間はリセット状態(停止)、離した瞬間に再起動
   let resetHeld = false;
