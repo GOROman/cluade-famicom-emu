@@ -607,6 +607,35 @@
     font-family: ui-monospace, Menlo, monospace;
   }
   .wave-row canvas { background: #000; border: 1px solid #333; }
+  #dbg-mixer { white-space: normal; }
+  .mix-row { display: flex; align-items: center; gap: 5px; margin: 2px 0; }
+  .mix-row > span {
+    width: 30px;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .mix-row > span.muted { color: #555; text-decoration: line-through; }
+  .mix-row input[type=range] {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 12px;
+    cursor: pointer;
+  }
+  .mix-row input.vol { accent-color: #4aa84a; }
+  .mix-row input.pan { accent-color: #5a8fd0; }
+  .mix-row .val {
+    width: 34px;
+    flex-shrink: 0;
+    font-size: 9px;
+    color: #85755a;
+    font-family: ui-monospace, Menlo, monospace;
+    text-align: right;
+  }
+  .mix-row.exp-row { display: none; }
+  body.has-expansion .mix-row.exp-row { display: flex; }
   .wave-row.exp-row { display: none; }
   body.has-expansion .wave-row.exp-row { display: flex; }
   .wave-row span.chan-toggle { cursor: pointer; }
@@ -820,6 +849,8 @@
         <div class="wave-row exp-row"><span>VSW</span><canvas class="wave" width="280" height="18"></canvas></div>
         <div class="wave-row"><span>MIX</span><canvas class="wave" width="280" height="18"></canvas></div>
       </div>
+      <h3 id="h-mixer">APU ミキサー</h3>
+      <div id="dbg-mixer"></div>
       <h3 id="h-apuregs">APU $4000-$4017</h3>
       <div id="dbg-apu"></div>
       <h3 id="h-wram">WRAM $0000-$07FF (ダブルクリックで編集)</h3>
@@ -865,10 +896,10 @@ PRGとCHRを別のカセットから組み合わせた「ニコイチカセッ�
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784783149';</script>
-<script src="i18n.js?v=1784783149"></script>
-<script src="smb-ram.js?v=1784783149"></script>
-<script src="nes.js?v=1784783149"></script>
-<script src="main.js?v=1784783149"></script>
+<script>window.NES_VER='1784787160';</script>
+<script src="i18n.js?v=1784787160"></script>
+<script src="smb-ram.js?v=1784787160"></script>
+<script src="nes.js?v=1784787160"></script>
+<script src="main.js?v=1784787160"></script>
 </body>
 </html>

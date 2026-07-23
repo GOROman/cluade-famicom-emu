@@ -22,6 +22,9 @@
     framebuffer: Module._nes_framebuffer,
     setButtons: Module._nes_set_buttons,
     audioBuffer: Module._nes_audio_buffer,
+    audioBufferR: Module._nes_audio_buffer_r,
+    setChannelVolume: Module._nes_set_channel_volume,
+    setChannelPan: Module._nes_set_channel_pan,
     audioCount: Module._nes_audio_sample_count,
     audioClear: Module._nes_audio_clear,
     ram: Module._nes_ram,
@@ -87,6 +90,7 @@
     set('check-close', 'close');
     set('h-cpu', 'cpuRegs');
     set('h-waves', 'apuWaves');
+    set('h-mixer', 'mixer');
     set('h-apuregs', 'apuRegs');
     set('h-wram', 'wramTitle');
     if (typeof romLoaded !== 'undefined' && !romLoaded) statusEl.textContent = t('statusDefault');
@@ -109,8 +113,8 @@
   let muted = false;
 
   // fallback ring buffer for ScriptProcessorNode (insecure contexts have no AudioWorklet)
-  const fallbackRing = new Float32Array(16384);
-  let fbRead = 0, fbWrite = 0, fbAvail = 0, fbLast = 0;
+  const fallbackRing = new Float32Array(16384 * 2);   // interleaved L,R
+  let fbRead = 0, fbWrite = 0, fbAvail = 0, fbLast = 0, fbLastR = 0;
   let pushSamples = null;
 
   async function initAudio() {
@@ -118,30 +122,36 @@
     audioCtx = new AudioContext({ sampleRate: 44100 });
     if (audioCtx.audioWorklet) {
       await audioCtx.audioWorklet.addModule('audio-worklet.js');
-      audioNode = new AudioWorkletNode(audioCtx, 'nes-audio', { outputChannelCount: [1] });
+      audioNode = new AudioWorkletNode(audioCtx, 'nes-audio', { outputChannelCount: [2] });
       audioNode.connect(audioCtx.destination);
       pushSamples = (s) => audioNode.port.postMessage(s);
     } else {
       // http:// on a LAN address etc. — fall back to ScriptProcessorNode
-      const sp = audioCtx.createScriptProcessor(1024, 0, 1);
+      const sp = audioCtx.createScriptProcessor(1024, 0, 2);
+      const cap = fallbackRing.length >> 1;
       sp.onaudioprocess = (e) => {
-        const out = e.outputBuffer.getChannelData(0);
-        for (let i = 0; i < out.length; i++) {
+        const outL = e.outputBuffer.getChannelData(0);
+        const outR = e.outputBuffer.getChannelData(1);
+        for (let i = 0; i < outL.length; i++) {
           if (fbAvail > 0) {
-            fbLast = fallbackRing[fbRead];
-            fbRead = (fbRead + 1) % fallbackRing.length;
+            fbLast = fallbackRing[fbRead * 2];
+            fbLastR = fallbackRing[fbRead * 2 + 1];
+            fbRead = (fbRead + 1) % cap;
             fbAvail--;
           }
-          out[i] = fbLast;
+          outL[i] = fbLast;
+          outR[i] = fbLastR;
         }
       };
       sp.connect(audioCtx.destination);
       audioNode = sp;
       pushSamples = (s) => {
-        for (let i = 0; i < s.length; i++) {
-          if (fbAvail >= fallbackRing.length) break;
-          fallbackRing[fbWrite] = s[i];
-          fbWrite = (fbWrite + 1) % fallbackRing.length;
+        const frames = s.length >> 1;
+        for (let i = 0; i < frames; i++) {
+          if (fbAvail >= cap) break;
+          fallbackRing[fbWrite * 2] = s[i * 2];
+          fallbackRing[fbWrite * 2 + 1] = s[i * 2 + 1];
+          fbWrite = (fbWrite + 1) % cap;
           fbAvail++;
         }
       };
@@ -1237,19 +1247,70 @@
   // waveform scopes
   const waveCanvases = [...document.querySelectorAll('canvas.wave')];
   const waveCtxs = waveCanvases.map((c) => c.getContext('2d'));
-  // channel mute toggles: click the SQ1/SQ2/TRI/NOI/DMC labels
+  // ---- per-channel mixer: mute / volume / pan ----
+  const CHAN_NAMES = ['SQ1', 'SQ2', 'TRI', 'NOI', 'DMC', 'VP1', 'VP2', 'VSW'];
   const chanOn = [true, true, true, true, true, true, true, true];
-  [...document.querySelectorAll('#dbg-waves .wave-row span')].slice(0, 8).forEach((span, ch) => {
+  const chanVol = [1, 1, 1, 1, 1, 1, 1, 1];
+  const chanPan = [0, 0, 0, 0, 0, 0, 0, 0];
+  const waveLabels = [...document.querySelectorAll('#dbg-waves .wave-row span')].slice(0, 8);
+  const mixLabels = [];
+
+  function setChannelMute(ch, on) {
+    chanOn[ch] = on;
+    api.setChannel(ch, on ? 1 : 0);
+    waveLabels[ch].classList.toggle('muted', !on);
+    if (mixLabels[ch]) mixLabels[ch].classList.toggle('muted', !on);
+  }
+  waveLabels.forEach((span, ch) => {
     span.classList.add('chan-toggle');
-    span.addEventListener('click', () => {
-      chanOn[ch] = !chanOn[ch];
-      api.setChannel(ch, chanOn[ch] ? 1 : 0);
-      span.classList.toggle('muted', !chanOn[ch]);
+    span.addEventListener('click', () => setChannelMute(ch, !chanOn[ch]));
+  });
+
+  const mixerBox = document.getElementById('dbg-mixer');
+  CHAN_NAMES.forEach((name, ch) => {
+    const row = document.createElement('div');
+    row.className = 'mix-row' + (ch >= 5 ? ' exp-row' : '');
+    const label = document.createElement('span');
+    label.textContent = name;
+    label.addEventListener('click', () => setChannelMute(ch, !chanOn[ch]));
+    const vol = document.createElement('input');
+    vol.type = 'range'; vol.className = 'vol';
+    vol.min = 0; vol.max = 2; vol.step = 0.05; vol.value = 1;
+    const pan = document.createElement('input');
+    pan.type = 'range'; pan.className = 'pan';
+    pan.min = -1; pan.max = 1; pan.step = 0.05; pan.value = 0;
+    const val = document.createElement('span');
+    val.className = 'val';
+    const refresh = () => {
+      const p = chanPan[ch];
+      const side = Math.abs(p) < 0.03 ? 'C' : (p < 0 ? 'L' : 'R');
+      val.textContent = Math.round(chanVol[ch] * 100) + '% ' + side;
+    };
+    vol.addEventListener('input', () => {
+      chanVol[ch] = parseFloat(vol.value);
+      api.setChannelVolume(ch, chanVol[ch]);
+      refresh();
     });
+    pan.addEventListener('input', () => {
+      chanPan[ch] = parseFloat(pan.value);
+      api.setChannelPan(ch, chanPan[ch]);
+      refresh();
+    });
+    vol.addEventListener('dblclick', () => { vol.value = 1; vol.dispatchEvent(new Event('input')); });
+    pan.addEventListener('dblclick', () => { pan.value = 0; pan.dispatchEvent(new Event('input')); });
+    refresh();
+    row.append(label, vol, pan, val);
+    mixerBox.appendChild(row);
+    mixLabels[ch] = label;
+    label.title = name;
+    vol.title = 'volume (double-click = 100%)';
+    pan.title = 'pan (double-click = center)';
   });
   function updateMuteTips() {
     document.querySelectorAll('#dbg-waves .wave-row span.chan-toggle')
       .forEach((sp) => { sp.title = t('muteTip'); });
+    document.querySelectorAll('#dbg-mixer .vol').forEach((el) => { el.title = t('volTip'); });
+    document.querySelectorAll('#dbg-mixer .pan').forEach((el) => { el.title = t('panTip'); });
   }
   // raw level range per channel: SQ1 SQ2 TRI NOI DMC / VRC6 pulse1 pulse2 sawtooth
   const WAVE_SCALE = [15, 15, 15, 15, 127, 15, 15, 31];
@@ -1509,8 +1570,13 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
       const count = api.audioCount();
       if (count > 0) {
         if (pushSamples && !muted) {
-          const ptr = api.audioBuffer() >> 2;
-          pushSamples(Module.HEAPF32.slice(ptr, ptr + count));
+          const l = api.audioBuffer() >> 2, r = api.audioBufferR() >> 2;
+          const inter = new Float32Array(count * 2);
+          for (let i = 0; i < count; i++) {
+            inter[i * 2] = Module.HEAPF32[l + i];
+            inter[i * 2 + 1] = Module.HEAPF32[r + i];
+          }
+          pushSamples(inter);
         }
         if (debugOn) captureWave(count);
         api.audioClear();
