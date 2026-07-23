@@ -188,7 +188,8 @@ float APU::mix() const {
     float n = chanEnable[3] ? noise_.output() / 12241.0f : 0.0f;
     float d = chanEnable[4] ? dmc_.outputLevel / 22638.0f : 0.0f;
     float tnd = (t + n + d) ? 159.79f / (1.0f / (t + n + d) + 100.0f) : 0.0f;
-    return pulseOut + tnd;
+    float exp = nes_.mapper ? nes_.mapper->audioOut() : 0.0f;
+    return pulseOut + tnd + exp;
 }
 
 void APU::step() {
@@ -238,6 +239,9 @@ void APU::step() {
             chanBuf[2][sampleCount] = (uint8_t)triangle_.output();
             chanBuf[3][sampleCount] = (uint8_t)noise_.output();
             chanBuf[4][sampleCount] = dmc_.outputLevel;
+            for (int c = 0; c < 3; c++)
+                chanBuf[5 + c][sampleCount] =
+                    nes_.mapper ? (uint8_t)nes_.mapper->expansionChannel(c) : 0;
             sampleCount++;
         }
     }

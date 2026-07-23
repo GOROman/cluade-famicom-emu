@@ -29,8 +29,16 @@ public:
     }
     // Called once per scanline at PPU dot ~260 when rendering enabled (MMC3 IRQ)
     virtual void scanline() {}
+    // Called once per CPU cycle (VRC-style IRQ counters, expansion audio)
+    virtual void cpuCycle() {}
     virtual bool irqPending() const { return false; }
     virtual void irqClear() {}
+
+    // ---- cartridge expansion audio (VRC6 etc.) ----
+    virtual bool hasExpansionAudio() const { return false; }
+    virtual float audioOut() const { return 0.0f; }        // mixed into the APU output
+    virtual int expansionChannel(int) const { return 0; }  // raw level for the debug scopes
+    void setExpansionMute(int ch, bool on) { if (ch >= 0 && ch < 3) expMute_[ch] = on; }
 
     Mirroring mirroring() const { return mirroring_; }
     bool hasBattery() const { return battery_; }
@@ -41,6 +49,7 @@ protected:
     Mirroring mirroring_;
     bool battery_;
     bool chrRam_ = false;
+    bool expMute_[3] = {false, false, false};   // UI mute for expansion channels
 };
 
 std::unique_ptr<Mapper> loadRom(const uint8_t* data, size_t size);
@@ -147,9 +156,9 @@ public:
     float sampleBuf[2048] = {};
     int sampleCount = 0;
     // per-channel raw levels at each sample point (debug scope): p1,p2,tri,noise,dmc
-    uint8_t chanBuf[5][2048] = {};
-    // per-channel mute switches (UI): p1,p2,tri,noise,dmc
-    bool chanEnable[5] = {true, true, true, true, true};
+    uint8_t chanBuf[8][2048] = {};
+    // per-channel mute switches (UI): p1,p2,tri,noise,dmc,(expansion x3)
+    bool chanEnable[8] = {true, true, true, true, true, true, true, true};
     void setSampleRate(double rate) { cyclesPerSample_ = 1789773.0 / rate; }
     float mix() const;   // public: also used by the oscilloscope probe
 

@@ -65,6 +65,7 @@ void NES::runCycles(int n) {
             ppu.step();
             ppu.step();
             cycleCount++;
+            if (mapper) mapper->cpuCycle();
             if (probePin) probeSample();
         }
         n -= cycles;
@@ -132,6 +133,7 @@ void NES::runFrame() {
             ppu.step();
             ppu.step();
             cycleCount++;
+            if (mapper) mapper->cpuCycle();
             if (probePin) probeSample();
         }
     }
@@ -347,10 +349,15 @@ API int nes_probe_level() {
 }
 API int nes_probe_pos() { return g_nes ? g_nes->probePos : 0; }
 API void nes_set_channel(int ch, int on) {
-    if (g_nes && ch >= 0 && ch < 5) g_nes->apu.chanEnable[ch] = on != 0;
+    if (!g_nes || ch < 0 || ch >= 8) return;
+    g_nes->apu.chanEnable[ch] = on != 0;
+    if (ch >= 5 && g_nes->mapper) g_nes->mapper->setExpansionMute(ch - 5, on == 0);
+}
+API int nes_has_expansion_audio() {
+    return (g_nes && g_nes->mapper && g_nes->mapper->hasExpansionAudio()) ? 1 : 0;
 }
 API uint8_t* nes_chan_buffer(int ch) {
-    return (g_nes && ch >= 0 && ch < 5) ? g_nes->apu.chanBuf[ch] : nullptr;
+    return (g_nes && ch >= 0 && ch < 8) ? g_nes->apu.chanBuf[ch] : nullptr;
 }
 
 API int nes_has_battery() {
