@@ -37,6 +37,7 @@ public:
     // ---- cartridge expansion audio (VRC6 etc.) ----
     virtual bool hasExpansionAudio() const { return false; }
     virtual float audioOut() const { return 0.0f; }        // mixed into the APU output
+    virtual float expansionGain() const { return 0.0f; }   // per-channel scale for the mixer
     virtual int expansionChannel(int) const { return 0; }  // raw level for the debug scopes
     void setExpansionMute(int ch, bool on) { if (ch >= 0 && ch < 3) expMute_[ch] = on; }
 
@@ -152,15 +153,21 @@ public:
     void writeReg(uint16_t addr, uint8_t v);
     bool irqPending() const { return frameIrq_ || dmcIrq_; }
 
-    // audio output: float samples accumulated per frame
-    float sampleBuf[2048] = {};
+    // audio output: float samples accumulated per frame (stereo)
+    float sampleBuf[2048] = {};      // left
+    float sampleBufR[2048] = {};     // right
     int sampleCount = 0;
     // per-channel raw levels at each sample point (debug scope): p1,p2,tri,noise,dmc
     uint8_t chanBuf[8][2048] = {};
     // per-channel mute switches (UI): p1,p2,tri,noise,dmc,(expansion x3)
     bool chanEnable[8] = {true, true, true, true, true, true, true, true};
+    // mixer: per-channel gain (0..2, 1 = unity) and pan (-1 left .. +1 right)
+    float chanVolume[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+    float chanPan[8] = {0, 0, 0, 0, 0, 0, 0, 0};
     void setSampleRate(double rate) { cyclesPerSample_ = 1789773.0 / rate; }
-    float mix() const;   // public: also used by the oscilloscope probe
+    float mix() const;   // mono sum; also used by the oscilloscope probe
+    void mixStereo(float& l, float& r) const;
+    void channelOutputs(float out[8]) const;
 
 private:
     NES& nes_;

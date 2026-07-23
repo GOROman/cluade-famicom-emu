@@ -181,15 +181,51 @@ void APU::stepDmc() {
     }
 }
 
+// Per-channel contributions. The 2A03 mixes pulses and TND through two
+// non-linear stages, so each channel's share is split proportionally out of
+// its stage: the shares always sum back to the exact mono mix.
+void APU::channelOutputs(float out[8]) const {
+    float p1 = chanEnable[0] ? pulse1_.output() * chanVolume[0] : 0.0f;
+    float p2 = chanEnable[1] ? pulse2_.output() * chanVolume[1] : 0.0f;
+    float psum = p1 + p2;
+    float pulseOut = psum > 0.0f ? 95.88f / (8128.0f / psum + 100.0f) : 0.0f;
+    out[0] = psum > 0.0f ? pulseOut * (p1 / psum) : 0.0f;
+    out[1] = psum > 0.0f ? pulseOut * (p2 / psum) : 0.0f;
+
+    float t = (chanEnable[2] ? triangle_.output() * chanVolume[2] : 0.0f) / 8227.0f;
+    float n = (chanEnable[3] ? noise_.output() * chanVolume[3] : 0.0f) / 12241.0f;
+    float d = (chanEnable[4] ? dmc_.outputLevel * chanVolume[4] : 0.0f) / 22638.0f;
+    float tsum = t + n + d;
+    float tnd = tsum > 0.0f ? 159.79f / (1.0f / tsum + 100.0f) : 0.0f;
+    out[2] = tsum > 0.0f ? tnd * (t / tsum) : 0.0f;
+    out[3] = tsum > 0.0f ? tnd * (n / tsum) : 0.0f;
+    out[4] = tsum > 0.0f ? tnd * (d / tsum) : 0.0f;
+
+    float g = nes_.mapper ? nes_.mapper->expansionGain() : 0.0f;
+    for (int c = 0; c < 3; c++) {
+        float v = (g > 0.0f && nes_.mapper) ? (float)nes_.mapper->expansionChannel(c) : 0.0f;
+        out[5 + c] = chanEnable[5 + c] ? v * chanVolume[5 + c] * g : 0.0f;
+    }
+}
+
 float APU::mix() const {
-    int p = (chanEnable[0] ? pulse1_.output() : 0) + (chanEnable[1] ? pulse2_.output() : 0);
-    float pulseOut = p ? 95.88f / (8128.0f / p + 100.0f) : 0.0f;
-    float t = chanEnable[2] ? triangle_.output() / 8227.0f : 0.0f;
-    float n = chanEnable[3] ? noise_.output() / 12241.0f : 0.0f;
-    float d = chanEnable[4] ? dmc_.outputLevel / 22638.0f : 0.0f;
-    float tnd = (t + n + d) ? 159.79f / (1.0f / (t + n + d) + 100.0f) : 0.0f;
-    float exp = nes_.mapper ? nes_.mapper->audioOut() : 0.0f;
-    return pulseOut + tnd + exp;
+    float out[8];
+    channelOutputs(out);
+    float s = 0.0f;
+    for (int c = 0; c < 8; c++) s += out[c];
+    return s;
+}
+
+// Linear pan law with unity at centre, so a centred mix is bit-identical to mono
+void APU::mixStereo(float& l, float& r) const {
+    float out[8];
+    channelOutputs(out);
+    l = r = 0.0f;
+    for (int c = 0; c < 8; c++) {
+        float p = chanPan[c];
+        l += out[c] * (p <= 0.0f ? 1.0f : 1.0f - p);
+        r += out[c] * (p >= 0.0f ? 1.0f : 1.0f + p);
+    }
 }
 
 void APU::step() {
@@ -233,7 +269,10 @@ void APU::step() {
     if (sampleTimer_ >= cyclesPerSample_) {
         sampleTimer_ -= cyclesPerSample_;
         if (sampleCount < (int)(sizeof(sampleBuf) / sizeof(float))) {
-            sampleBuf[sampleCount] = mix();
+            float l, r;
+            mixStereo(l, r);
+            sampleBuf[sampleCount] = l;
+            sampleBufR[sampleCount] = r;
             chanBuf[0][sampleCount] = (uint8_t)pulse1_.output();
             chanBuf[1][sampleCount] = (uint8_t)pulse2_.output();
             chanBuf[2][sampleCount] = (uint8_t)triangle_.output();

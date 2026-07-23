@@ -224,19 +224,25 @@ API int nes_swap_rom(int size) {
     return 1;
 }
 
+static void muteIfCartAudioBroken() {
+    // Famicom audio loops through the cartridge (pins 45/46) — a bad contact mutes it
+    if (g_nes->soundOk) return;
+    for (int i = 0; i < g_nes->apu.sampleCount; i++) {
+        g_nes->apu.sampleBuf[i] = 0;
+        g_nes->apu.sampleBufR[i] = 0;
+    }
+}
+
 API void nes_frame() {
     if (!g_nes || !g_nes->mapper) return;
     g_nes->runFrame();
-    // Famicom audio loops through the cartridge (pins 45/46) — a bad contact mutes it
-    if (!g_nes->soundOk)
-        for (int i = 0; i < g_nes->apu.sampleCount; i++) g_nes->apu.sampleBuf[i] = 0;
+    muteIfCartAudioBroken();
 }
 
 API void nes_run_cycles(int n) {
     if (!g_nes || !g_nes->mapper || n <= 0) return;
     g_nes->runCycles(n);
-    if (!g_nes->soundOk)
-        for (int i = 0; i < g_nes->apu.sampleCount; i++) g_nes->apu.sampleBuf[i] = 0;
+    muteIfCartAudioBroken();
 }
 
 API void nes_set_pin(int pin, int on) {
@@ -261,6 +267,13 @@ API void nes_set_buttons(int padIndex, int buttons) {
 }
 
 API float* nes_audio_buffer() { return g_nes ? g_nes->apu.sampleBuf : nullptr; }
+API float* nes_audio_buffer_r() { return g_nes ? g_nes->apu.sampleBufR : nullptr; }
+API void nes_set_channel_volume(int ch, float v) {
+    if (g_nes && ch >= 0 && ch < 8) g_nes->apu.chanVolume[ch] = v < 0 ? 0 : (v > 2 ? 2 : v);
+}
+API void nes_set_channel_pan(int ch, float p) {
+    if (g_nes && ch >= 0 && ch < 8) g_nes->apu.chanPan[ch] = p < -1 ? -1 : (p > 1 ? 1 : p);
+}
 API int nes_audio_sample_count() { return g_nes ? g_nes->apu.sampleCount : 0; }
 API void nes_audio_clear() { if (g_nes) g_nes->apu.sampleCount = 0; }
 

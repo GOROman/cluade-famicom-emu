@@ -299,8 +299,10 @@ public:
     }
     float audioOut() const override {
         int sum = expansionChannel(0) + expansionChannel(1) + expansionChannel(2);
-        return sum * 0.0065f;   // 6-bit linear DAC, leveled against the 2A03 mix
+        return sum * expansionGain();
     }
+    // 6-bit linear DAC, leveled against the 2A03 mix
+    float expansionGain() const override { return 0.0065f; }
 
 private:
     struct Pulse {
