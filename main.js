@@ -81,6 +81,7 @@
     set('lbl-swap-prg', 'swapPrg');
     set('lbl-swap-chr', 'swapChr');
     set('swap-note', 'swapNote');
+    set('swap-url-btn', 'urlLoad');
     set('swap-close', 'close');
     set('check-close', 'close');
     set('h-cpu', 'cpuRegs');
@@ -292,18 +293,8 @@
     };
   }
 
-  document.getElementById('rom-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  function loadRomBuffer(buf, name) {
     saveSram();
-    let buf;
-    try {
-      buf = new Uint8Array(await file.arrayBuffer());
-    } catch (err) {
-      console.error('[nes] rom read failed:', err);
-      statusEl.textContent = t('readFail');
-      return;
-    }
     const ptr = api.romBuffer();
     if (buf.length > 4 * 1024 * 1024) {
       statusEl.textContent = t('tooBig');
@@ -322,16 +313,47 @@
       statusEl.textContent = t('unsupported') + info;
       return;
     }
-    romKey = file.name + ':' + buf.length;
+    romKey = name + ':' + buf.length;
     keepRomCopies(buf);
-    setCartSources(file.name, buf);
-    updateRamLabels(file.name);
+    setCartSources(name, buf);
+    updateRamLabels(name);
     loadSram();
     resumeAudio(); // don't await: resume() only settles after a user gesture
-    statusEl.textContent = file.name;
+    statusEl.textContent = name;
     romLoaded = true;
     setPower(true);   // 電源ON(パワーオンリセット込み)
+  }
+
+  document.getElementById('rom-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    let buf;
+    try {
+      buf = new Uint8Array(await file.arrayBuffer());
+    } catch (err) {
+      console.error('[nes] rom read failed:', err);
+      statusEl.textContent = t('readFail');
+      return;
+    }
+    loadRomBuffer(buf, file.name);
   });
+
+  // ?rom=<URL> で起動時に自動ロード (相対パス or CORS 許可された URL)
+  const bootRomUrl = new URLSearchParams(location.search).get('rom');
+  if (bootRomUrl) {
+    (async () => {
+      try {
+        const res = await fetch(bootRomUrl);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const buf = new Uint8Array(await res.arrayBuffer());
+        const name = decodeURIComponent((new URL(bootRomUrl, location.href)).pathname.split('/').pop()) || 'rom.nes';
+        loadRomBuffer(buf, name);
+      } catch (err) {
+        console.error('[nes] ?rom= load failed:', err);
+        statusEl.textContent = 'ROM fetch failed: ' + bootRomUrl;
+      }
+    })();
+  }
 
   // リセットはレベル信号: 押している間はリセット状態(停止)、離した瞬間に再起動
   let resetHeld = false;
@@ -397,11 +419,11 @@
   // リセットは掛けない(電源入れっぱなし差し替え=バグ技用)
   function applySwap() {
     const img = buildCombined();
-    if (img.length > 4 * 1024 * 1024) { statusEl.textContent = t('tooBig'); return; }
+    if (img.length > 4 * 1024 * 1024) { statusEl.textContent = t('tooBig'); return false; }
     Module.HEAPU8.set(img, api.romBuffer());
     if (!api.swapRom(img.length)) {
       statusEl.textContent = t('unsupportedSwap');
-      return;
+      return false;
     }
     romKey = `${cartPrg.name}+${cartChr.name}:${img.length}`;
     keepRomCopies(img);
@@ -410,6 +432,7 @@
     romLoaded = true;
     updateSwapInfo();
     statusEl.textContent = t(powered ? 'swapDoneReset' : 'swapDonePower');
+    return true;
   }
   async function readSwapFile(e) {
     const file = e.target.files[0];
@@ -451,6 +474,50 @@
     if (!cartPrg) cartPrg = { name: f.name, header: f.header, data: f.prg };
     applySwap();
   });
+
+  // ---- load ROM from a URL (CORS permitting) ----
+  async function loadRomFromUrl(url) {
+    statusEl.textContent = t('urlFetching');
+    let buf;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(res.status);
+      buf = new Uint8Array(await res.arrayBuffer());
+    } catch (_) {
+      statusEl.textContent = t('urlFail');
+      return;
+    }
+    const p = parseNes(buf);
+    if (!p) { statusEl.textContent = t('unsupportedFmt'); return; }
+    const name = decodeURIComponent((url.split('/').pop() || 'rom.nes').split('?')[0]) || 'rom.nes';
+    saveSram();
+    cartPrg = { name, header: p.header, data: p.prg };
+    cartChr = { name, data: p.chr };
+    if (applySwap()) {
+      // URL load boots like ROMを開く: power-cycle and run
+      api.powerOn();
+      updateRamLabels(name);
+      setPower(true);
+      resumeAudio();
+      statusEl.textContent = name;
+      swapPanel.classList.remove('show');
+    }
+  }
+  const swapUrlInput = document.getElementById('swap-url');
+  document.getElementById('swap-url-btn').addEventListener('click', () => {
+    const u = swapUrlInput.value.trim();
+    if (u) loadRomFromUrl(u);
+  });
+  swapUrlInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') document.getElementById('swap-url-btn').click();
+  });
+  swapUrlInput.addEventListener('keyup', (e) => e.stopPropagation());
+  // ?rom=<url> query parameter auto-load
+  {
+    const q = new URLSearchParams(location.search).get('rom');
+    if (q) loadRomFromUrl(q);
+  }
   const muteBtn = document.getElementById('btn-mute');
   muteBtn.addEventListener('click', () => {
     muted = !muted;
