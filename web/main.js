@@ -492,11 +492,7 @@
     if (e.key === 'Enter') document.getElementById('swap-url-btn').click();
   });
   swapUrlInput.addEventListener('keyup', (e) => e.stopPropagation());
-  // ?rom=<url> query parameter auto-load
-  {
-    const q = new URLSearchParams(location.search).get('rom');
-    if (q) loadRomFromUrl(q);
-  }
+
   const muteBtn = document.getElementById('btn-mute');
   muteBtn.addEventListener('click', () => {
     muted = !muted;
@@ -1479,6 +1475,37 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
       updateDebug(now);
       if (tilt !== 0) updateBusUI(false);
     }
+  }
+  // ---- URL query parameters ----
+  // ?rom=<url> ?debug=1 ?pin=0 ?clock=<Hz> ?tilt=<deg> ?break=25,29 ?mute=1 ?lang=en
+  {
+    const qs = new URLSearchParams(location.search);
+    const langQ = qs.get('lang');
+    if (langQ && (langQ === 'auto' || window.I18N[langQ])) {
+      langPref = langQ;
+      lang = langQ === 'auto' ? detectLang() : langQ;
+    }
+    if (qs.get('debug') === '1' && !document.body.classList.contains('debug-on')) {
+      document.getElementById('btn-debug').click();
+    }
+    const pinQ = qs.get('pin') ?? qs.get('bus');   // 端子パネルの表示 (既定は1)
+    if (pinQ === '0' && document.body.classList.contains('bus-on')) document.getElementById('btn-bus').click();
+    if (pinQ === '1' && !document.body.classList.contains('bus-on')) document.getElementById('btn-bus').click();
+    const clk = parseFloat(qs.get('clock'));
+    if (!isNaN(clk)) setClock(clk);
+    const tiltQ = parseFloat(qs.get('tilt'));
+    if (!isNaN(tiltQ)) setTilt(tiltQ);
+    const brk = qs.get('break');
+    if (brk) {
+      for (const n of brk.split(',').map(Number)) {
+        if (Number.isInteger(n) && n >= 1 && n <= 60) manualOff.add(n);
+      }
+      applyContacts();
+      updateBusUI(true);
+    }
+    if (qs.get('mute') === '1' && !muted) document.getElementById('btn-mute').click();
+    const romQ = qs.get('rom');
+    if (romQ) loadRomFromUrl(romQ);
   }
   applyLanguage();
   requestAnimationFrame((now) => { lastTime = now; tick(now); });
