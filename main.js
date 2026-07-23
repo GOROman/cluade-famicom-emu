@@ -31,6 +31,7 @@
     renderChr: Module._nes_render_chr,
     chanBuffer: Module._nes_chan_buffer,
     setChannel: Module._nes_set_channel,
+    hasExpansionAudio: Module._nes_has_expansion_audio,
     apuRegs: Module._nes_apu_regs,
     cpuRegs: Module._nes_cpu_regs,
     peek: Module._nes_peek,
@@ -258,16 +259,25 @@
   let powered = false;
   const btnPower = document.getElementById('btn-power');
 
+  // no signal: animated TV snow on the canvas while the power is off
+  const staticView = new Uint32Array(imageData.data.buffer);
+  let noiseSeed = 0x9E3779B9;
+  function drawStatic() {
+    for (let i = 0; i < staticView.length; i++) {
+      // xorshift32: much cheaper than Math.random() for 61k pixels a frame
+      noiseSeed ^= noiseSeed << 13; noiseSeed ^= noiseSeed >>> 17; noiseSeed ^= noiseSeed << 5;
+      const v = 40 + ((noiseSeed >>> 24) * 0.8 | 0);
+      staticView[i] = 0xFF000000 | (v << 16) | (v << 8) | v;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
   function setPower(on) {
     powered = on;
     btnPower.classList.toggle('power-on', on);
     btnPower.classList.toggle('power-off', !on);
     running = on && romLoaded;
-    if (!on) {
-      saveSram();
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, 256, 240);
-    }
+    if (!on) saveSram();
   }
   btnPower.addEventListener('click', () => {
     if (!romLoaded) {
@@ -281,6 +291,10 @@
       setPower(true);
     }
   });
+
+  function refreshExpansionUI() {
+    document.body.classList.toggle('has-expansion', !!api.hasExpansionAudio());
+  }
 
   function keepRomCopies(buf) {
     // PRG/CHR copies for dump diagnostics
@@ -325,6 +339,7 @@
     }
     romKey = file.name + ':' + buf.length;
     keepRomCopies(buf);
+    refreshExpansionUI();
     setCartSources(file.name, buf);
     updateRamLabels(file.name);
     loadSram();
@@ -406,6 +421,7 @@
     }
     romKey = `${cartPrg.name}+${cartChr.name}:${img.length}`;
     keepRomCopies(img);
+    refreshExpansionUI();
     updateRamLabels(cartPrg.name);
     loadSram();
     romLoaded = true;
@@ -1189,8 +1205,8 @@
   const waveCanvases = [...document.querySelectorAll('canvas.wave')];
   const waveCtxs = waveCanvases.map((c) => c.getContext('2d'));
   // channel mute toggles: click the SQ1/SQ2/TRI/NOI/DMC labels
-  const chanOn = [true, true, true, true, true];
-  [...document.querySelectorAll('#dbg-waves .wave-row span')].slice(0, 5).forEach((span, ch) => {
+  const chanOn = [true, true, true, true, true, true, true, true];
+  [...document.querySelectorAll('#dbg-waves .wave-row span')].slice(0, 8).forEach((span, ch) => {
     span.classList.add('chan-toggle');
     span.addEventListener('click', () => {
       chanOn[ch] = !chanOn[ch];
@@ -1202,12 +1218,14 @@
     document.querySelectorAll('#dbg-waves .wave-row span.chan-toggle')
       .forEach((sp) => { sp.title = t('muteTip'); });
   }
-  const WAVE_SCALE = [15, 15, 15, 15, 127];  // raw level range per channel
+  // raw level range per channel: SQ1 SQ2 TRI NOI DMC / VRC6 pulse1 pulse2 sawtooth
+  const WAVE_SCALE = [15, 15, 15, 15, 127, 15, 15, 31];
+  const MIX_ROW = 8;
   let waveData = null;  // captured per frame while debug is on
 
   function captureWave(count) {
     const chans = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 8; i++) {
       const p = api.chanBuffer(i);
       chans.push(Module.HEAPU8.slice(p, p + count));
     }
@@ -1218,17 +1236,17 @@
   function drawWaves() {
     if (!waveData) return;
     const { count, chans, mix } = waveData;
-    for (let ch = 0; ch < 6; ch++) {
+    for (let ch = 0; ch <= MIX_ROW; ch++) {
       const ctx2 = waveCtxs[ch];
       const w = waveCanvases[ch].width, h = waveCanvases[ch].height;
       ctx2.fillStyle = '#000';
       ctx2.fillRect(0, 0, w, h);
-      ctx2.strokeStyle = ch === 5 ? '#ffcf5a' : '#6fdc6f';
+      ctx2.strokeStyle = ch === MIX_ROW ? '#ffcf5a' : (ch >= 5 ? '#6fd0dc' : '#6fdc6f');
       ctx2.lineWidth = 1;
       ctx2.beginPath();
       for (let x = 0; x < w; x++) {
         const i = Math.min(count - 1, (x * count / w) | 0);
-        const v = ch < 5 ? chans[ch][i] / WAVE_SCALE[ch] : Math.min(1, mix[i] * 2);
+        const v = ch < MIX_ROW ? chans[ch][i] / WAVE_SCALE[ch] : Math.min(1, mix[i] * 2);
         const y = h - 2 - v * (h - 4);
         if (x === 0) ctx2.moveTo(x, y); else ctx2.lineTo(x, y);
       }
@@ -1394,6 +1412,7 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
     drawWaves();
   }
   window.__nes.updateDebug = (now) => updateDebug(now);
+  window.__nes.drawStatic = () => drawStatic();
   window.__nes.captureWave = (c) => captureWave(c);
 
   // ------------------------------------------------------------------ main loop
@@ -1404,6 +1423,7 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
   function tick(now) {
     requestAnimationFrame(tick);
     drawProbe();   // oscilloscope updates in real time, even when paused
+    if (!powered) { drawStatic(); return; }        // no signal
     if (!running || resetHeld) return;   // reset held: CPU frozen in reset state
 
     acc += now - lastTime;
