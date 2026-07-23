@@ -259,17 +259,49 @@
   let powered = false;
   const btnPower = document.getElementById('btn-power');
 
-  // no signal: animated TV snow on the canvas while the power is off
-  const staticView = new Uint32Array(imageData.data.buffer);
+  // No signal: animated TV snow. Rendered at the canvas's on-screen
+  // resolution rather than 256x240, so the grain stays fine instead of
+  // inheriting the emulator's chunky pixels.
+  let snowImage = null, snowView = null, snowW = 0, snowH = 0;
   let noiseSeed = 0x9E3779B9;
+
+  function ensureSnowBuffer() {
+    const r = canvas.getBoundingClientRect();
+    const w = Math.max(256, Math.min(1280, Math.round(r.width) || 256));
+    const h = Math.max(240, Math.min(960, Math.round(r.height) || 240));
+    if (w === snowW && h === snowH && canvas.width === w) return;
+    snowW = w; snowH = h;
+    canvas.width = w; canvas.height = h;
+    snowImage = ctx.createImageData(w, h);
+    snowView = new Uint32Array(snowImage.data.buffer);
+  }
+
   function drawStatic() {
-    for (let i = 0; i < staticView.length; i++) {
-      // xorshift32: much cheaper than Math.random() for 61k pixels a frame
+    ensureSnowBuffer();
+    const view = snowView, len = view.length;
+    // one xorshift32 step feeds four pixels (one per byte) to keep this cheap
+    for (let i = 0; i < len; i += 4) {
       noiseSeed ^= noiseSeed << 13; noiseSeed ^= noiseSeed >>> 17; noiseSeed ^= noiseSeed << 5;
-      const v = 40 + ((noiseSeed >>> 24) * 0.8 | 0);
-      staticView[i] = 0xFF000000 | (v << 16) | (v << 8) | v;
+      const r = noiseSeed;
+      const a = 30 + (((r & 0xFF) * 210) >> 8);
+      const b = 30 + ((((r >>> 8) & 0xFF) * 210) >> 8);
+      const c = 30 + ((((r >>> 16) & 0xFF) * 210) >> 8);
+      const d = 30 + ((((r >>> 24) & 0xFF) * 210) >> 8);
+      view[i] = 0xFF000000 | (a << 16) | (a << 8) | a;
+      if (i + 1 < len) view[i + 1] = 0xFF000000 | (b << 16) | (b << 8) | b;
+      if (i + 2 < len) view[i + 2] = 0xFF000000 | (c << 16) | (c << 8) | c;
+      if (i + 3 < len) view[i + 3] = 0xFF000000 | (d << 16) | (d << 8) | d;
     }
-    ctx.putImageData(imageData, 0, 0);
+    ctx.putImageData(snowImage, 0, 0);
+  }
+
+  // back to the NES framebuffer resolution when the machine runs again
+  function restoreScreenCanvas() {
+    if (canvas.width !== 256 || canvas.height !== 240) {
+      canvas.width = 256;
+      canvas.height = 240;
+      snowW = snowH = 0;
+    }
   }
 
   function setPower(on) {
@@ -277,7 +309,8 @@
     btnPower.classList.toggle('power-on', on);
     btnPower.classList.toggle('power-off', !on);
     running = on && romLoaded;
-    if (!on) saveSram();
+    if (on) restoreScreenCanvas();
+    else saveSram();
   }
   btnPower.addEventListener('click', () => {
     if (!romLoaded) {
