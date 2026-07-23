@@ -116,8 +116,8 @@
     font-size: 12px;
     color: var(--fc-red-dark);
     font-weight: bold;
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 1 1 120px;
+    min-width: 90px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -414,6 +414,56 @@
     margin-bottom: 4px;
   }
   #probe-canvas { display: block; background: #0a0f05; }
+  /* settings dialog */
+  #settings-panel {
+    display: none;
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(420px, 92vw);
+    background: #1b1b1b;
+    border: 3px solid var(--fc-red);
+    border-radius: 8px;
+    padding: 16px;
+    z-index: 11;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+  }
+  #settings-panel.show { display: block; }
+  #settings-panel h3 { color: #ddd; font-size: 14px; margin-bottom: 12px; }
+  .set-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .set-row > span:first-child {
+    font-size: 12px;
+    color: #9fdf9f;
+    white-space: nowrap;
+  }
+  .set-row input[type=range] {
+    flex: 1 1 0;
+    min-width: 0;
+    accent-color: #4aa84a;
+    cursor: pointer;
+  }
+  .set-row .set-val {
+    width: 44px;
+    text-align: right;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    color: #ddd;
+  }
+  #settings-note {
+    font-size: 11px;
+    color: #85755a;
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+  #settings-close {
+    background: #444;
+    color: #eee;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 16px;
+    font-weight: bold;
+    cursor: pointer;
+  }
   /* cartridge swap dialog */
   #swap-panel {
     display: none;
@@ -744,6 +794,7 @@
     <button id="btn-bus">端子</button>
     <button id="btn-xev" hidden>XEVIOUS判定</button>
     <button id="btn-tas">TAS</button>
+    <button id="btn-settings">⚙</button>
     <input type="file" id="tas-input" accept=".fm2" style="display:none">
     <span id="status">.NESファイルを選択してください</span>
     <select id="lang-select"><option value="auto">Auto</option><option value="ja">日本語</option><option value="en">English</option><option value="zh">中文</option></select>
@@ -872,6 +923,16 @@
   <div id="probe-label"></div>
   <canvas id="probe-canvas" width="256" height="80"></canvas>
 </div>
+<div id="settings-panel">
+  <h3 id="settings-title">設定</h3>
+  <div class="set-row">
+    <span id="lbl-master">マスターボリューム</span>
+    <input type="range" id="master-vol" min="0" max="150" step="1" value="100">
+    <span class="set-val" id="master-val">100%</span>
+  </div>
+  <div id="settings-note">スライダーはダブルクリックで既定値に戻ります。チャンネル個別の音量/定位は DEBUG パネルのミキサーで調整できます。</div>
+  <button id="settings-close">閉じる</button>
+</div>
 <div id="swap-panel">
   <h3 id="swap-title">カセット入替</h3>
   <div id="swap-current">PRG: - / CHR: -</div>
@@ -896,10 +957,10 @@ PRGとCHRを別のカセットから組み合わせた「ニコイチカセッ�
   </div>
   <button id="check-close">閉じる</button>
 </div>
-<script>window.NES_VER='1784787160';</script>
-<script src="i18n.js?v=1784787160"></script>
-<script src="smb-ram.js?v=1784787160"></script>
-<script src="nes.js?v=1784787160"></script>
-<script src="main.js?v=1784787160"></script>
+<script>window.NES_VER='1784797553';</script>
+<script src="i18n.js?v=1784797553"></script>
+<script src="smb-ram.js?v=1784797553"></script>
+<script src="nes.js?v=1784797553"></script>
+<script src="main.js?v=1784797553"></script>
 </body>
 </html>

@@ -86,6 +86,11 @@
     set('lbl-swap-chr', 'swapChr');
     set('swap-note', 'swapNote');
     set('swap-url-btn', 'urlLoad');
+    set('btn-settings', 'settingsBtn');
+    set('settings-title', 'settingsTitle');
+    set('lbl-master', 'masterVol');
+    set('settings-note', 'settingsNote');
+    set('settings-close', 'close');
     set('swap-close', 'close');
     set('check-close', 'close');
     set('h-cpu', 'cpuRegs');
@@ -110,12 +115,25 @@
   // ------------------------------------------------------------------ audio
   let audioCtx = null;
   let audioNode = null;
+  let masterGain = null;
   let muted = false;
+  let masterVolume = parseFloat(localStorage.getItem('masterVolume'));
+  if (!(masterVolume >= 0 && masterVolume <= 1.5)) masterVolume = 1;
 
   // fallback ring buffer for ScriptProcessorNode (insecure contexts have no AudioWorklet)
   const fallbackRing = new Float32Array(16384 * 2);   // interleaved L,R
   let fbRead = 0, fbWrite = 0, fbAvail = 0, fbLast = 0, fbLastR = 0;
   let pushSamples = null;
+
+  function makeMasterGain() {
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = muted ? 0 : masterVolume;
+    masterGain.connect(audioCtx.destination);
+    return masterGain;
+  }
+  function applyMasterVolume() {
+    if (masterGain) masterGain.gain.value = muted ? 0 : masterVolume;
+  }
 
   async function initAudio() {
     if (audioCtx) return;
@@ -123,7 +141,7 @@
     if (audioCtx.audioWorklet) {
       await audioCtx.audioWorklet.addModule('audio-worklet.js');
       audioNode = new AudioWorkletNode(audioCtx, 'nes-audio', { outputChannelCount: [2] });
-      audioNode.connect(audioCtx.destination);
+      audioNode.connect(makeMasterGain());
       pushSamples = (s) => audioNode.port.postMessage(s);
     } else {
       // http:// on a LAN address etc. — fall back to ScriptProcessorNode
@@ -143,7 +161,7 @@
           outR[i] = fbLastR;
         }
       };
-      sp.connect(audioCtx.destination);
+      sp.connect(makeMasterGain());
       audioNode = sp;
       pushSamples = (s) => {
         const frames = s.length >> 1;
@@ -556,7 +574,36 @@
   muteBtn.addEventListener('click', () => {
     muted = !muted;
     muteBtn.textContent = muted ? '🔇' : '🔊';
+    applyMasterVolume();
   });
+
+  // ---- settings dialog ----
+  const settingsPanel = document.getElementById('settings-panel');
+  const masterSlider = document.getElementById('master-vol');
+  const masterVal = document.getElementById('master-val');
+  function refreshMaster() {
+    masterSlider.value = Math.round(masterVolume * 100);
+    masterVal.textContent = Math.round(masterVolume * 100) + '%';
+    applyMasterVolume();
+  }
+  masterSlider.addEventListener('input', () => {
+    masterVolume = parseFloat(masterSlider.value) / 100;
+    localStorage.setItem('masterVolume', masterVolume);
+    refreshMaster();
+  });
+  masterSlider.addEventListener('dblclick', () => {
+    masterVolume = 1;
+    localStorage.setItem('masterVolume', masterVolume);
+    refreshMaster();
+  });
+  masterSlider.addEventListener('keydown', (e) => e.stopPropagation());
+  document.getElementById('btn-settings').addEventListener('click', () => {
+    refreshMaster();
+    settingsPanel.classList.toggle('show');
+  });
+  document.getElementById('settings-close').addEventListener('click', () =>
+    settingsPanel.classList.remove('show'));
+  refreshMaster();
 
   // ------------------------------------------------------------------ dump check (XEVIOUS判定)
   // reference CRCs from a known-good Xevious (Japan) cartridge
@@ -1507,6 +1554,7 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
   }
   window.__nes.updateDebug = (now) => updateDebug(now);
   window.__nes.drawStatic = () => drawStatic();
+  window.__nes.masterGainValue = () => (masterGain ? masterGain.gain.value : null);
   window.__nes.captureWave = (c) => captureWave(c);
 
   // ------------------------------------------------------------------ main loop
@@ -1623,6 +1671,11 @@ NOP*:1A imp,3A imp,5A imp,7A imp,DA imp,FA imp,80 imm,82 imm,89 imm,C2 imm,E2 im
       updateBusUI(true);
     }
     if (qs.get('mute') === '1' && !muted) document.getElementById('btn-mute').click();
+    const volQ = parseFloat(qs.get('vol'));
+    if (!isNaN(volQ)) {
+      masterVolume = Math.max(0, Math.min(1.5, volQ / 100));
+      refreshMaster();
+    }
     const romQ = qs.get('rom');
     if (romQ) loadRomFromUrl(romQ);
   }

@@ -59,6 +59,7 @@ Load an FCEUX **.fm2** movie with the TAS button. Playback power-cycles with the
 | `tilt=<deg>` | Cartridge tilt, ±6 |
 | `break=25,29` | Start with these pins disconnected |
 | `mute=1` | Start muted |
+| `vol=<0-150>` | Master volume in percent |
 | `lang=en/ja/zh/auto` | UI language |
 
 ## Controls
