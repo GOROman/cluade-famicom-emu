@@ -1,88 +1,99 @@
 # claude-famicom-emu
 
-Webブラウザで動くファミコン(NES)エミュレータ。コアは C++ で実装し、Emscripten で WebAssembly にコンパイルしています。
+A Famicom (NES) emulator that runs in the browser. The core is written in C++ and compiled to WebAssembly with Emscripten — with a hardware playground on top: a live 60-pin cartridge connector you can break, a cartridge you can tilt to simulate a half-inserted cart, and an oscilloscope you can probe any pin with.
 
-**▶ 遊ぶ: https://goroman.github.io/cluade-famicom-emu/**
+**▶ Play: https://goroman.github.io/cluade-famicom-emu/**
 
-「ROMを開く」で手持ちの .NES ファイル(iNES形式)を読み込むと起動します。PC・Android Chrome 対応。
+Open any .NES file (iNES format) with "Open ROM". Works on desktop and Android Chrome.
 
-## 特徴
+🌐 [日本語](README.ja.md) · [中文](README.zh.md)
 
-### エミュレーションコア (C++/WASM)
-- 6502 CPU — 全公式命令+主要非公式命令。nestest 全8991ステップをサイクル数まで完全一致
-- PPU — サイクル精度のスキャンライン処理、Loopyスクロール、スプライト0ヒット
-- APU — 矩形波×2 / 三角波 / ノイズ / DPCM。AudioWorklet 再生(非HTTPS環境では ScriptProcessor に自動フォールバック)
-- マッパー: 0 (NROM) / 1 (MMC1) / 2 (UxROM) / 3 (CNROM, 64KBオーバーサイズ対応) / 4 (MMC3, スキャンラインIRQ)
-- 旧形式 iNES ヘッダ("DiskDude!" 等のゴミ入り)対応
-- バッテリーバックアップ (SRAM) を localStorage に自動保存
+## Features
 
-### カートリッジ端子シミュレーション(「端子」モード・起動時オン)
-- **60ピンのカードエッジを表示**(実機ピンアサイン準拠)。ピンをクリックすると接触不良をトグル
-- 断線の影響を物理的に再現: アドレス線欠落→暴走、データ線欠落→化け、CIRAM系→ネームテーブル破壊、SOUND断→無音、電源は 1/16(GND)・30/31(+5V) の冗長構成
-- **カートリッジ正面図**(実機形状トレースのSVG)を傾けて**半挿しをシミュレート**: スライダー±6°(0.1°刻み)。浮いた側の端子から接触がフレーム毎に不安定になる
-- **息(フーフー)💨** — 接触不良が65%で復活、ただしPPU側端子が10%で新たにダメになる(湿気)。SE付き、リセット同時押下
-- **挿し直す** — 全ピン復旧+傾き0°+リセット
+### Emulation core (C++ / WASM)
+- **6502 CPU** — all official opcodes plus the common unofficial ones. Verified against nestest.nes: all 8991 steps match the reference log down to cycle counts.
+- **PPU** — cycle-accurate scanline rendering, Loopy scrolling, sprite 0 hit, sprite overflow.
+- **APU** — 2 pulse + triangle + noise + DPCM, played through an AudioWorklet (falls back to ScriptProcessor on non-HTTPS origins).
+- **Mappers** — 0 (NROM), 1 (MMC1), 2 (UxROM), 3 (CNROM, including oversize 64 KB CHR), 4 (MMC3 with scanline IRQ).
+- Archaic iNES headers (the ones with `DiskDude!` garbage in the tail) are handled.
+- Battery-backed SRAM is saved to localStorage automatically.
 
-### デバッグ機能(DEBUGボタン / Dキー)
-- 左: CGROM(CHRパターンテーブル)ビューア — 現在のPPUパレットで着色、クリックでBG/SPパレット切替。端子の接触不良も描画に反映
-- 右: APU 6ch 波形スコープ(SQ1/SQ2/TRI/NOI/DMC/MIX)、APUレジスタダンプ($4000-$4017)、WRAMダンプ($0000-$07FF)
+### Cartridge connector simulation ("PINS" mode, on by default)
+- The **60-pin card edge** is drawn to the real pinout. Click a pin to break its contact.
+- Breakage is modeled physically: missing address lines send the CPU to the wrong place, missing data lines return open-bus garbage, CIRAM faults wreck the nametables, a broken SOUND pin mutes the console (Famicom audio loops through the cartridge), and power is redundant across pins 1/16 (GND) and 30/31 (+5V).
+- **Tilt the cartridge** with the slider (±6°, 0.1° steps) or by dragging it — the lifted side of the connector goes intermittent, then dead, exactly like a half-inserted cart.
+- **Blow 💨** — clears a bad contact 65 % of the time, but each good PPU-side pin has a 10 % chance of going bad from the moisture. Comes with a sound effect and a reset, as tradition demands.
+- **Re-insert** restores every pin, straightens the cart and resets.
 
-### XEVIOUS判定(ダンプ診断ツール)
-読み込んだROMの PRG/CHR CRC32 を正規ダンプ(PRG=EEB16683 / CHR=668B4EE6)と照合。
-CGROM が NG の場合、**ダンパーの結線ミスを自動診断**:
-- アドレス線の固定/断線検出(鏡像重複解析)
-- アドレス線 A0-A12・データ線 D0-D7 の1本入れ替え全パターン照合(「A3↔A5 を入れ替えると一致」のように特定)
+### Hot cartridge swap (bug techniques)
+The **RESET** button behaves like the real one — work RAM survives. **Swap Cart** loads a new ROM *without any reset at all*, so the classic swap-carts-with-the-power-on tricks work (Super Mario → Tennis → Super Mario for the minus/9-1 world). The dialog can also take the PRG-ROM and the CHR-ROM from **different cartridges** to build a franken-cart, or fetch a ROM straight **from a URL**.
 
-## URLパラメータ
+### Debugging (DEBUG button / D key)
+- **CHR (CGROM) viewer** — pattern tables colorized with the live PPU palette; click to cycle BG/sprite palettes. Connector faults show up here too.
+- **Oscilloscope** — hover any connector pin (or the /NMI, APU /IRQ, MAPPER /IRQ test points) to attach a probe. The core samples that signal every CPU cycle; below 60 kHz the scope switches to a real-time strip chart.
+- **CPU registers + disassembly** — PC/A/X/Y/SP/P with flags and a frame counter, over a live 12-instruction disassembly from PC.
+- **APU** — six waveform scopes (SQ1/SQ2/TRI/NOI/DMC/MIX, click a label to mute that channel) and a register dump of $4000–$4017.
+- **WRAM dump** — double-click a byte to edit it. Changed bytes glow; bytes that change constantly (timers, RNG) are grayed out. With Super Mario Bros. loaded, hovering a byte shows its variable name and comment from [SMBDIS.ASM](https://gist.github.com/1wErt3r/4048722).
 
-`https://goroman.github.io/cluade-famicom-emu/?rom=<URL>&debug=1&pin=0` のように指定できます。
+### Variable clock
+Slider and Hz input under the connector, spanning **1 Hz to the stock 1.789773 MHz** (logarithmic). The main loop paces by CPU cycles, so single-digit-Hz clocks really do step — you can watch the raster crawl across a frame. Audio pitch follows the clock.
 
-| パラメータ | 説明 |
-|-----------|------|
-| `rom=<URL>` | .NESファイルをURLから自動読み込み・起動(CORS許可が必要。GitHub raw等) |
-| `debug=1` | DEBUGパネルを開いた状態で起動 |
-| `pin=0` / `pin=1` | 端子パネルの非表示/表示(既定は表示) |
-| `clock=<Hz>` | クロック周波数(1〜1789773) |
-| `tilt=<度>` | カセットの傾き(±6、0.1刻み) |
-| `break=25,29` | 指定ピンを断線状態で起動 |
-| `mute=1` | ミュートで起動 |
-| `lang=ja/en/zh/auto` | 表示言語 |
+### TAS playback
+Load an FCEUX **.fm2** movie with the TAS button. Playback power-cycles with the FCEUX RAM pattern and then steps frame by frame with the movie's inputs; soft-reset and power commands in the movie are honored.
 
-## 操作
+### Also
+- USB gamepads (Gamepad API), a touch pad for Android, fullscreen (F).
+- UI in English, Japanese and Chinese; follows the browser locale by default.
+- **XEVIOUS dump check** — a hidden diagnostic that compares PRG/CHR CRC32s against a known-good dump and, when the CHR doesn't match, works out which address or data line the dumper had miswired.
 
-| NES | キーボード | タッチ | ゲームパッド |
-|-----|-----------|--------|------------|
-| 十字キー | 矢印キー | 左下パッド | 十字キー / 左スティック |
-| A | X | A | 右ボタン |
-| B | Z | B | 下ボタン |
+## URL parameters
+
+`https://goroman.github.io/cluade-famicom-emu/?rom=<URL>&debug=1&pin=0`
+
+| Parameter | Effect |
+|-----------|--------|
+| `rom=<URL>` | Fetch and boot a .NES file from a URL (the host must allow CORS — GitHub raw does) |
+| `debug=1` | Start with the debug panel open |
+| `pin=0` / `pin=1` | Hide / show the connector panel (shown by default) |
+| `clock=<Hz>` | Clock frequency, 1–1789773 |
+| `tilt=<deg>` | Cartridge tilt, ±6 |
+| `break=25,29` | Start with these pins disconnected |
+| `mute=1` | Start muted |
+| `lang=en/ja/zh/auto` | UI language |
+
+## Controls
+
+| NES | Keyboard | Touch | Gamepad |
+|-----|----------|-------|---------|
+| D-pad | Arrow keys | on-screen pad | D-pad / left stick |
+| A | X | A | right face button |
+| B | Z | B | bottom face button |
 | Start | Enter | START | Start |
 | Select | Shift | SELECT | Select |
 
-ホットキー: **F**=フルスクリーン / **R**=リセット / **D**=デバッグパネル
+Hotkeys: **F** fullscreen · **R** reset (held = held in reset) · **D** debug panel
 
-USBゲームパッドは Gamepad API 対応(接続するとステータス欄に名前表示)。
+## Build
 
-## ビルド
-
-Emscripten (emcc) が必要です。
+Requires Emscripten (`emcc`).
 
 ```sh
-./build.sh   # → web/nes.js + web/nes.wasm 生成、index.html にキャッシュバスト版数を刻印
+./build.sh   # → web/nes.js + web/nes.wasm, stamps a cache-busting version into index.html
 ```
 
-## ローカル実行
+## Run locally
 
 ```sh
 cd web
 python3 -m http.server 8765 --bind 0.0.0.0
 ```
 
-- PC: http://localhost:8765/
-- Android: 同一LANから `http://<ホストのIP>:8765/`
+- Desktop: http://localhost:8765/
+- Android: `http://<host IP>:8765/` from the same network
 
-## デプロイ (GitHub Pages)
+## Deploy (GitHub Pages)
 
-`web/` を `gh-pages` ブランチとして配信しています。
+`web/` is published as the `gh-pages` branch.
 
 ```sh
 ./build.sh
@@ -91,22 +102,22 @@ git push
 git subtree push --prefix web origin gh-pages
 ```
 
-## 構成
+## Layout
 
 ```
-core/    C++ エミュレータコア
+core/    C++ emulator core
   cpu.cpp        6502
-  ppu.cpp        PPU (パレット、端子故障の反映含む)
-  apu.cpp        APU + チャンネル別スコープ用バッファ
-  cartridge.cpp  iNESローダ + マッパー 0-4
-  nes.cpp        バス統合、60ピン端子故障モデル、WASM C API
-web/     フロントエンド (index.html / main.js / audio-worklet.js) + WASM出力
-build.sh Emscripten ビルド + バージョン刻印
+  ppu.cpp        PPU (palette, connector faults, NMI line)
+  apu.cpp        APU + per-channel scope buffers
+  cartridge.cpp  iNES loader + mappers 0-4
+  nes.cpp        bus, 60-pin fault model, oscilloscope probe, WASM C API
+web/     frontend (index.html / main.js / i18n.js / audio-worklet.js) + WASM output
+build.sh Emscripten build + version stamping
 ```
 
-## テスト
+## Tests
 
-- CPU: nestest.nes をリファレンスログと突き合わせるネイティブハーネスで検証
-- マッパー/ヘッダ/端子故障: 合成ROMによるユニットテスト(ネイティブビルド)
+- **CPU**: a native harness runs nestest.nes against the reference log.
+- **Mappers, headers, connector faults**: unit tests with synthetic ROMs (native build).
 
-※ ROMファイルはリポジトリに含まれません。手持ちの .NES ファイルをご利用ください。
+No ROMs are included in this repository — bring your own .NES files.
